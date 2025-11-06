@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orders Management | SmartDine POS</title>
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body class="dashboard-body">
+  <div class="dashboard-container">
+    
+    <aside class="sidebar admin-only">
+      <h2 class="sidebar-logo">🍽️ SmartDine</h2>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-link">Dashboard</a>
+        <a href="staff.html" class="nav-link">Staff Management</a>
+        <a href="menu.html" class="nav-link">Manage Menu</a>
+        <a href="orders.html" class="nav-link active">Manage Orders</a> 
+        <a href="tables.html" class="nav-link">Manage Tables</a>
+        <a href="inventory.html" class="nav-link">Manage Inventory</a>
+        <a href="billing.html" class="nav-link">Billing</a>
+        <a href="reports.html" class="nav-link">Sales Reports</a>
+      </nav>
+      <button id="logoutBtn" class="logout-btn">Logout</button>
+    </aside>
+
+    <aside class="sidebar staff-only">
+      <h2 class="sidebar-logo">🍽️ SmartDine</h2>
+      <nav class="sidebar-nav">
+        <a href="staff-dashboard.html" class="nav-link">Dashboard</a>
+        <a href="orders.html" class="nav-link active">Manage Orders</a>
+        <a href="menu.html" class="nav-link">Manage Menu</a> 
+        <a href="tables.html" class="nav-link">Manage Tables</a>
+        <a href="billing.html" class="nav-link">Billing</a>
+      </nav>
+      <button id="logoutBtn" class="logout-btn">Logout</button>
+    </aside>
+
+    <main class="main-content">
+      <div class="topbar">
+        <h1>Orders Management</h1>
+        <div class="user-info">
+          <span id="adminName">Admin</span>
+        </div>
+      </div>
+
+      <section id="ordersSection" class="module-section">
+        <div class="section-header">
+          <h2>Orders Management</h2>
+          <button id="addOrderBtn" class="primary-btn">+ New Order</button>
+        </div>
+        <table class="styled-table" id="ordersTable">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Table</th>
+              <th>Time Placed</th> <th>Items</th>
+              <th>Status</th>
+              <th>Total (₹)</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="ordersBody"></tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+
+  <div id="orderModal" class="modal hidden">
+    <div class="modal-content">
+      <h3 id="orderModalTitle">Create New Order</h3>
+        <form id="orderForm">
+        
+        <label for="orderTable">Table:</label>
+       <select id="orderTable" required>
+  <option value="">-- Select an available table --</option>
+  </select>
+        
+        <label for="orderStatus">Status:</label>
+        <select id="orderStatus">
+            <option value="pending">Pending</option>
+            <option value="preparing">Preparing</option>
+            <option value="completed">Completed</option>
+            <option value="delivered">Delivered</option>
+        </select>
+        
+        <hr style="margin: 1rem 0;">
+
+        <fieldset>
+            <legend>Add Items to Order</legend>
+            <div class="form-group-row">
+            <select id="menuItemSelect" style="flex-grow: 3;">
+                <option value="">-- Select an item --</option>
+                </select>
+            <input type="number" id="itemQuantity" value="1" min="1" style="flex-grow: 1;">
+            </div>
+            <button type="button" id="addItemToOrderBtn" class="primary-btn" style="width: 100%; margin-top: 10px;">+ Add Item</button>
+        </fieldset>
+        
+        <hr style="margin: 1rem 0;">
+
+        <h4>Order Summary</h4>
+        <div id="orderSummary" class="order-summary-list">
+            <p>No items added yet.</p>
+        </div>
+        
+        <h2 id="orderTotalDisplay" style="text-align: right; margin: 10px 0; color: var(--primary-color);">
+            Total: ₹0.00
+        </h2>
+
+        <div class="modal-actions">
+            <button type="submit" class="primary-btn">Save Order</button>
+            <button type="button" id="cancelOrderBtn" class="secondary-btn">Cancel</button>
+        </div>
+        </form>
+    </div>
+  </div>
+  <div id="billingModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Generate Bill</h3>
+      <div id="billDetails">
+        </div>
+
+      <div class="payment-section">
+        <h4 style="margin-bottom: 10px; color: var(--text-dark);">Payment Type:</h4>
+        <div id="paymentToggle" class="role-toggle">
+          <button class="payment-btn active" data-value="Cash">Cash</button>
+          <button class="payment-btn" data-value="Card">Card</button>
+          <button class="payment-btn" data-value="UPI">UPI</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="printBillBtn" class="primary-btn">🧾 Finalize & Print</button>
+        <button id="closeBillBtn" class="secondary-btn">Close</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="js/dashboard.js"></script>
+  <script src="js/orders.js"></script>
+</body>
+</html>

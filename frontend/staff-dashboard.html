@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Staff Dashboard | SmartDine POS</title>
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body class="dashboard-body">
+  <div class="dashboard-container">
+    
+    <aside class="sidebar">
+      <h2 class="sidebar-logo">🍽️ SmartDine</h2>
+      <nav class="sidebar-nav">
+        <a href="staff-dashboard.html" class="nav-link active">Dashboard</a>
+        <a href="orders.html" class="nav-link">Manage Orders</a>
+        <a href="menu.html" class="nav-link">Manage Menu</a>
+        <a href="tables.html" class="nav-link">Manage Tables</a>
+        <a href="billing.html" class="nav-link">Billing</a>
+      </nav>
+      <button id="logoutBtn" class="logout-btn">Logout</button>
+    </aside>
+
+    <main class="main-content">
+      <div class="topbar">
+        <h1>Staff Dashboard</h1>
+        <div class="user-info">
+          <span id="adminName"></span> 
+        </div>
+      </div>
+
+      <section class="cards-container">
+        <a href="orders.html">
+          <div class="card">
+            <h3>Active Orders</h3>
+            <p id="activeOrders">--</p>
+          </div>
+        </a>
+        <a href="tables.html">
+          <div class="card">
+            <h3>Available Tables</h3>
+            <p id="availableTables">--</p>
+          </div>
+        </a>
+        <a href="billing.html">
+          <div class="card">
+            <h3>Pending Bills</h3>
+            <p id="pendingBills">--</p>
+          </div>
+        </a>
+      </section>
+      
+      </main>
+  </div>
+
+  <script src="js/dashboard.js"></script>
+  <script src="js/staff-dashboard.js"></script>
+</body>
+</html>

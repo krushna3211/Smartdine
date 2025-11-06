@@ -1,0 +1,707 @@
+/* ---
+   Modern CSS for SmartDine (Orange Theme)
+   --- */
+
+/* 1. Globals & CSS Variables
+   We define your brand colors and standard transitions here.
+   This makes all animations consistent.
+   -------------------------------- */
+:root {
+  --primary-color: #e67e22;
+  --primary-hover: #f39c12;
+  --primary-light-focus: #fdf3e9; /* A light orange for focus rings */
+  
+  --status-green: #2ecc71;
+  --status-red: #e74c3c;
+  --status-yellow: #f39c12;
+
+  --text-dark: #333;
+  --text-light: #fff;
+  --border-color: #ddd;
+  
+  /* Shadows */
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.15);
+
+  /* Transitions */
+  --transition-fast: all 0.2s ease-in-out;
+  --transition-slow: all 0.3s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background: #f9f9f9;
+  color: var(--text-dark);
+  scroll-behavior: smooth;
+}
+
+/* 2. Navbar
+   Added 'lift' (transform) to buttons on hover.
+   -------------------------------- */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 5%;
+  background: var(--text-light);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo img {
+  width: 40px;
+  height: 40px;
+}
+
+.navbar nav a {
+  margin-left: 20px;
+  text-decoration: none;
+  color: var(--text-dark);
+  font-weight: 500;
+  transition: color var(--transition-fast);
+}
+
+.navbar nav a:hover {
+  color: var(--primary-color);
+}
+
+.login-btn {
+  background: var(--primary-color);
+  color: var(--text-light) !important;
+  padding: 8px 15px;
+  border-radius: 8px;
+  transition: var(--transition-slow);
+}
+
+.login-btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px); /* Lifts the button */
+  box-shadow: var(--shadow-sm);
+}
+
+/* 3. Hero
+   Added a text-shadow for depth and a 'growing' CTA button.
+   -------------------------------- */
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+  background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
+    url('../images/restaurant-bg.jpg') center/cover no-repeat;
+  color: var(--text-light);
+  text-align: center;
+  padding: 2rem;
+}
+
+.hero h2 {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5); /* Makes text pop */
+}
+
+.cta-btn {
+  display: inline-block;
+  background: var(--primary-color);
+  color: var(--text-light);
+  padding: 10px 20px;
+  border-radius: 8px;
+  margin-top: 15px;
+  font-weight: 500;
+  transition: var(--transition-slow);
+}
+
+.cta-btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-3px) scale(1.05); /* Lifts and grows */
+  box-shadow: var(--shadow-lg);
+}
+
+/* 4. About & Contact
+   (Layout only, no interactive elements)
+   -------------------------------- */
+.about, .contact {
+  padding: 4rem 10%;
+  text-align: center;
+}
+
+.about h2, .contact h2 {
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+/* 5. Footer
+   (Layout only)
+   -------------------------------- */
+footer {
+  background: #333;
+  color: var(--text-light);
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.9rem;
+}
+
+/* 6. Login Page
+   Added focus rings, shadow transitions, and button animations.
+   -------------------------------- */
+.login-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: linear-gradient(120deg, var(--primary-color), var(--primary-hover));
+}
+
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.login-card {
+  background: var(--text-light);
+  padding: 2rem 3rem;
+  border-radius: 16px;
+  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);
+  text-align: center;
+  width: 350px;
+  transition: transform var(--transition-slow), box-shadow var(--transition-slow);
+}
+
+.login-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2); /* Enhanced shadow */
+}
+
+.login-card h2 {
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+.role-toggle {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.2rem;
+}
+
+.role-toggle button {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--primary-color);
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-weight: 500;
+  color: var(--primary-color);
+}
+
+.role-toggle button.active {
+  background: var(--primary-color);
+  color: var(--text-light);
+}
+
+#loginForm {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+#loginForm input {
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  transition: var(--transition-fast);
+}
+
+/* This is the 'alive' part for forms */
+#loginForm input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-light-focus);
+}
+
+.login-submit {
+  background: var(--primary-color);
+  color: var(--text-light);
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  transition: var(--transition-slow);
+}
+
+.login-submit:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+#loginMessage {
+  margin-top: 10px;
+  color: var(--status-red);
+  font-size: 0.9rem;
+}
+
+.back-home {
+  display: inline-block;
+  margin-top: 15px;
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+.back-home:hover {
+  text-decoration: underline;
+}
+
+/* 7. Dashboard Layout
+   (Layout only)
+   -------------------------------- */
+.dashboard-body {
+  display: flex;
+  background: #f9f9f9;
+  font-family: 'Poppins', sans-serif;
+}
+
+.dashboard-container {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+}
+
+/* 8. Sidebar
+   Added gradient, new hover effects, and fixed style conflicts.
+   -------------------------------- */
+.sidebar {
+  width: 240px;
+  /* Added a subtle gradient to make it less flat */
+  background: linear-gradient(170deg, var(--primary-color), #d35400);
+  color: var(--text-light);
+  display: flex;
+  flex-direction: column;
+  /* justify-content: space-between; */
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar-logo {
+  text-align: center;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-grow: 1; /* Pushes logout to bottom */
+}
+
+.sidebar-nav a {
+  text-decoration: none;
+  color: var(--text-light);
+  padding: 10px 15px; /* Added more horizontal padding */
+  border-radius: 8px;
+  transition: var(--transition-fast);
+  border-left: 4px solid transparent; /* For the hover effect */
+}
+
+.sidebar-nav a:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(5px); /* Moves item right */
+  border-left-color: var(--primary-hover);
+}
+
+.sidebar-nav a.active {
+  background: rgba(255, 255, 255, 0.2);
+  font-weight: 600;
+  border-left-color: var(--text-light);
+}
+
+.logout-btn {
+  background: var(--text-light);
+  color: var(--primary-color);
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: var(--transition-slow);
+}
+
+.logout-btn:hover {
+  background: var(--primary-light-focus);
+  color: #d35400; /* Darker orange */
+  transform: scale(1.03); /* Slight pulse */
+  box-shadow: var(--shadow-md);
+}
+
+/* 9. Main Content
+   (Layout only)
+   -------------------------------- */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 30px;
+  overflow-y: auto;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.topbar h1 {
+  color: var(--text-dark);
+}
+
+.user-info {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+/* 10. Dashboard Cards
+   Added shadow transition and hover-color to title.
+   -------------------------------- */
+.cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.card {
+  background: var(--text-light);
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+  padding: 20px;
+  text-align: center;
+  transition: transform var(--transition-slow), box-shadow var(--transition-slow);
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-lg); /* Deeper shadow on hover */
+}
+
+.card h3 {
+  color: var(--primary-color);
+  margin-bottom: 10px;
+  transition: color var(--transition-fast);
+}
+
+.card:hover h3 {
+  color: var(--primary-hover); /* Title brightens */
+}
+
+.card p {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+/* 11. Module Sections & Tables
+   Added button transitions and table row hover effects.
+   -------------------------------- */
+.module-section {
+  margin-top: 30px;
+  background: var(--text-light);
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.primary-btn {
+  background: var(--primary-color);
+  color: var(--text-light);
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: var(--transition-slow);
+}
+
+.primary-btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.secondary-btn {
+  background: #eee; /* Lighter gray */
+  color: var(--text-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: var(--transition-slow);
+}
+
+.secondary-btn:hover {
+  background: #e0e0e0;
+  transform: translateY(-2px);
+}
+
+.styled-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.styled-table th, .styled-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.styled-table th {
+  background: #f7f7f7;
+  color: var(--text-dark);
+}
+
+/* This makes your tables feel interactive */
+.styled-table tbody tr {
+  transition: background-color var(--transition-fast);
+}
+.styled-table tbody tr:hover {
+  background-color: var(--primary-light-focus);
+}
+
+.styled-table td button {
+  margin-right: 5px;
+  transition: transform var(--transition-fast);
+}
+.styled-table td button:hover {
+  transform: scale(1.1); /* Button 'jumps' */
+}
+
+/* 12. Modals
+   Added fade-in and zoom-in animations.
+   -------------------------------- */
+/* Animation keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: fadeIn 0.3s ease; /* Fade in backdrop */
+}
+
+.modal-content {
+  background: var(--text-light);
+  border-radius: 16px;
+  padding: 25px;
+  width: 100%;
+  max-width: 550px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+  animation: zoomIn 0.3s ease; /* Zoom in modal box */
+}
+
+.modal-content input,
+.modal-content select {
+  transition: var(--transition-fast);
+  padding: 8px; /* Added padding */
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+/* Focus rings for modal forms */
+.modal-content input:focus,
+.modal-content select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-light-focus);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 15px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#menuTable img {
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+/* 13. Grid Cards (Tables, Inventory, Billing)
+   Enhanced the existing hover effect.
+   -------------------------------- */
+.tables-grid,
+.inventory-grid,
+.billing-orders-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+/* Grid column definitions (from your original file) */
+.tables-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.inventory-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.billing-orders-list { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+
+
+.table-card,
+.inventory-card,
+.billing-card {
+  background: var(--text-light);
+  border: 1px solid var(--border-color);
+  padding: 1rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition-slow);
+}
+
+.table-card:hover,
+.inventory-card:hover,
+.billing-card:hover {
+  transform: translateY(-5px) scale(1.02); /* Lift and grow */
+  box-shadow: var(--shadow-md);
+}
+
+.table-status {
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--text-light);
+}
+
+.status-available { background: var(--status-green); }
+.status-occupied { background: var(--status-red); }
+.status-reserved { background: var(--status-yellow); }
+
+.low-stock {
+  background: #f8d7da; /* Kept your original style */
+  border: 1px solid #f5c6cb;
+  border-left: 4px solid var(--status-red); /* Added emphasis */
+}
+
+.inventory-actions button {
+  margin: 4px;
+  cursor: pointer;
+}
+
+#billDetails {
+  background: #fafafa;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 10px 0;
+  border: 1px dashed var(--border-color); /* Dashed border */
+}
+
+
+/* REMOVED CONFLICTING STYLES:
+   The .sidebar-nav styles at the end of your original
+   file were conflicting with the main .sidebar styles.
+   I have removed them as they are now correctly
+   styled in the .sidebar section (item 8).
+*/
+/* Add to css/style.css */
+.form-group-row {
+  display: flex;
+  gap: 10px;
+}
+.form-group-row select,
+.form-group-row input {
+  width: auto !important; /* Override the default width */
+}
+
+.order-summary-list {
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--bg-page);
+}
+.order-summary-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--border-color);
+}
+.order-summary-item:last-child {
+  border-bottom: none;
+}
+
+/* --- Billing Modal Payment Section --- */
+.payment-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border-color);
+}
+
+/* --- Clickable Dashboard Cards --- */
+.cards-container a {
+  text-decoration: none; /* Removes the underline */
+}
+
+/* Re-asserts the original colors for the card content */
+.cards-container a .card h3 {
+   color: var(--primary-color); /* The original orange color for titles */
+}
+
+.cards-container a .card p {
+   color: var(--text-dark); /* The original dark text color for counts */
+}
+
+/* --- Bill Button Style --- */
+.bill-btn {
+  background-color: var(--primary-light-focus) !important;
+  color: var(--primary-color) !important;
+  font-weight: 600 !important;
+  padding: 8px !important;
+  border-radius: 8px;
+  border: 1px solid var(--primary-color);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.bill-btn:hover {
+  background-color: var(--primary-color) !important;
+  color: var(--text-light) !important;
+}

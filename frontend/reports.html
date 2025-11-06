@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales Reports | SmartDine POS</title>
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body class="dashboard-body">
+  <div class="dashboard-container">
+    
+    <aside class="sidebar admin-only">
+      <h2 class="sidebar-logo">🍽️ SmartDine</h2>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-link">Dashboard</a>
+        <a href="staff.html" class="nav-link">Staff Management</a>
+        <a href="menu.html" class="nav-link">Manage Menu</a> 
+        <a href="orders.html" class="nav-link">Manage Orders</a>
+        <a href="tables.html" class="nav-link">Manage Tables</a>
+        <a href="inventory.html" class="nav-link">Manage Inventory</a>
+        <a href="billing.html" class="nav-link">Billing</a>
+        <a href="reports.html" class="nav-link active">Sales Reports</a>
+      </nav>
+      <button id="logoutBtn" class="logout-btn">Logout</button>
+    </aside>
+    
+    <aside class="sidebar staff-only" style="display: none;"></aside>
+
+    <main class="main-content">
+      <div class="topbar">
+        <h1>Sales Reports</h1>
+        <div class="user-info">
+          <span id="adminName">Admin</span>
+        </div>
+      </div>
+
+      <section class="module-section">
+        <div class="section-header" style="flex-wrap: wrap; gap: 1rem;">
+          
+          <div id="periodToggle" class="role-toggle">
+            <button class="report-btn active" data-period="daily">Daily</button>
+            <button class="report-btn" data-period="weekly">Weekly</button>
+            <button class="report-btn" data-period="monthly">Monthly</button>
+          </div>
+          
+          <form id="reportForm" class="form-group-row">
+            <label for="reportDate" style="font-weight: 500;">Or Select Date:</label>
+            <input type="date" id="reportDate" required>
+            <button type="submit" class="primary-btn" style="margin-left: 10px;">View</button>
+          </form>
+          
+          <button id="downloadPdfBtn" class="primary-btn" style="margin-left: auto;">
+            Download PDF
+          </button>
+        </div>
+      </section>
+
+      <section class="cards-container">
+        <div class="card">
+          <h3>Total Sales</h3>
+          <p id="totalSales">₹0.00</p>
+        </div>
+        <div class="card">
+          <h3>Total Orders</h3>
+          <p id="totalOrders">0</p>
+        </div>
+      </section>
+
+      <section class="module-section">
+        <div class="section-header">
+          <h2 id="report-table-title">Daily Report - Paid Orders</h2>
+        </div>
+        <table class="styled-table" id="reportTable">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Table</th>
+              <th>Paid At</th>
+              <th>Total (₹)</th>
+            </tr>
+          </thead>
+          <tbody id="reportBody"></tbody>
+        </table>
+      </section>
+
+    </main>
+  </div>
+  
+  <script src="js/dashboard.js"></script>
+  <script src="js/reports.js"></script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+/* ---
+   SmartDine - Landing Page Styles
+   --- */
+
+/* 2. Navbar */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 5%;
+  background: var(--text-light);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo img {
+  width: 40px;
+  height: 40px;
+}
+
+.navbar nav a {
+  margin-left: 20px;
+  text-decoration: none;
+  color: var(--text-dark);
+  font-weight: 500;
+  transition: color var(--transition-fast);
+}
+
+.navbar nav a:hover {
+  color: var(--primary-color);
+}
+
+.login-btn {
+  background: var(--primary-color);
+  color: var(--text-light) !important;
+  padding: 8px 15px;
+  border-radius: 8px;
+  transition: var(--transition-slow);
+}
+
+.login-btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px); /* Lifts the button */
+  box-shadow: var(--shadow-sm);
+}
+
+/* 3. Hero */
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+  background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
+    url('../images/restaurant-bg.jpg') center/cover no-repeat;
+  color: var(--text-light);
+  text-align: center;
+  padding: 2rem;
+}
+
+.hero h2 {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5); /* Makes text pop */
+}
+
+.cta-btn {
+  display: inline-block;
+  background: var(--primary-color);
+  color: var(--text-light);
+  padding: 10px 20px;
+  border-radius: 8px;
+  margin-top: 15px;
+  font-weight: 500;
+  transition: var(--transition-slow);
+}
+
+.cta-btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-3px) scale(1.05); /* Lifts and grows */
+  box-shadow: var(--shadow-lg);
+}
+
+/* 4. About & Contact */
+.about, .contact {
+  padding: 4rem 10%;
+  text-align: center;
+}
+
+.about h2, .contact h2 {
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+/* 5. Footer */
+footer {
+  background: #333;
+  color: var(--text-light);
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.9rem;
+}

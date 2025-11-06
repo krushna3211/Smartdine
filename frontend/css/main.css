@@ -1,0 +1,83 @@
+/* ---
+   SmartDine - Main Styles
+   --- */
+
+/* 1. Globals & CSS Variables
+   -------------------------------- */
+:root {
+  --primary-color: #e67e22;
+  --primary-hover: #f39c12;
+  --primary-light-focus: #fdf3e9; /* A light orange for focus rings */
+  
+  --status-green: #2ecc71;
+  --status-red: #e74c3c;
+  --status-yellow: #f39c12;
+
+  --text-dark: #333;
+  --text-light: #fff;
+  --border-color: #ddd;
+  
+  /* Shadows */
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.15);
+
+  /* Transitions */
+  --transition-fast: all 0.2s ease-in-out;
+  --transition-slow: all 0.3s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background: #f9f9f9;
+  color: var(--text-dark);
+  scroll-behavior: smooth;
+}
+
+/* Animation keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Common Buttons (Used everywhere) */
+.primary-btn {
+  background: var(--primary-color);
+  color: var(--text-light);
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: var(--transition-slow);
+}
+
+.primary-btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.secondary-btn {
+  background: #eee; /* Lighter gray */
+  color: var(--text-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: var(--transition-slow);
+}
+
+.secondary-btn:hover {
+  background: #e0e0e0;
+  transform: translateY(-2px);
+}

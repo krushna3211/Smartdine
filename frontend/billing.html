@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Billing | SmartDine POS</title>
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body class="dashboard-body">
+  <div class="dashboard-container">
+    
+    <aside class="sidebar admin-only">
+      <h2 class="sidebar-logo">🍽️ SmartDine</h2>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-link">Dashboard</a>
+        <a href="staff.html" class="nav-link">Staff Management</a>
+        <a href="menu.html" class="nav-link">Manage Menu</a> 
+        <a href="orders.html" class="nav-link">Manage Orders</a>
+        
+        <a href="tables.html" class="nav-link">Manage Tables</a>
+        <a href="inventory.html" class="nav-link">Manage Inventory</a>
+        <a href="billing.html" class="nav-link active">Billing</a>
+        <a href="reports.html" class="nav-link">Sales Reports</a>
+      </nav>
+      <button id="logoutBtn" class="logout-btn">Logout</button>
+    </aside>
+
+    <aside class="sidebar staff-only">
+      <h2 class="sidebar-logo">🍽️ SmartDine</h2>
+      <nav class="sidebar-nav">
+        <a href="staff-dashboard.html" class="nav-link">Dashboard</a>
+        <a href="orders.html" class="nav-link">Manage Orders</a>
+        <a href="menu.html" class="nav-link">Manage Menu</a> 
+        <a href="tables.html" class="nav-link">Manage Tables</a>
+        <a href="billing.html" class="nav-link active">Billing</a>
+      </nav>
+      <button id="logoutBtn" class="logout-btn">Logout</button>
+    </aside>
+
+    <main class="main-content">
+      <div class="topbar">
+        <h1>Billing</h1>
+        <div class="user-info">
+          <span id="adminName">Admin</span>
+        </div>
+      </div>
+
+      <section id="billingSection" class="module-section">
+        <div class="section-header">
+          <h2>Orders Ready for Bill</h2>
+          <button id="refreshBillsBtn" class="primary-btn">↻ Refresh</button>
+        </div>
+        <div class="billing-orders-list" id="ordersToBill">
+          </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="billingModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Generate Bill</h3>
+      <div id="billDetails">
+        </div>
+
+      <div class="payment-section">
+        <h4 style="margin-bottom: 10px; color: var(--text-dark);">Payment Type:</h4>
+        <div id="paymentToggle" class="role-toggle">
+          <button class="payment-btn active" data-value="Cash">Cash</button>
+          <button class="payment-btn" data-value="Card">Card</button>
+          <button class="payment-btn" data-value="UPI">UPI</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="printBillBtn" class="primary-btn">🧾 Finalize & Print</button>
+        <button id="closeBillBtn" class="secondary-btn">Close</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="js/dashboard.js"></script>
+  <script src="js/billing.js"></script>
+</body>
+</html>

@@ -1,0 +1,477 @@
+/* ---
+   SmartDine - Dashboard & App Styles
+   --- */
+
+/* 6. Login Page */
+.login-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: linear-gradient(120deg, var(--primary-color), var(--primary-hover));
+}
+
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.login-card {
+  background: var(--text-light);
+  padding: 2rem 3rem;
+  border-radius: 16px;
+  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);
+  text-align: center;
+  width: 350px;
+  transition: transform var(--transition-slow), box-shadow var(--transition-slow);
+}
+
+.login-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2); /* Enhanced shadow */
+}
+
+.login-card h2 {
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+.role-toggle {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.2rem;
+}
+
+.role-toggle button {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--primary-color);
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-weight: 500;
+  color: var(--primary-color);
+}
+
+.role-toggle button.active {
+  background: var(--primary-color);
+  color: var(--text-light);
+}
+
+#loginForm {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+#loginForm input {
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  transition: var(--transition-fast);
+}
+
+#loginForm input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-light-focus);
+}
+
+.login-submit {
+  background: var(--primary-color);
+  color: var(--text-light);
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  transition: var(--transition-slow);
+}
+
+.login-submit:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+#loginMessage {
+  margin-top: 10px;
+  color: var(--status-red);
+  font-size: 0.9rem;
+}
+
+.back-home {
+  display: inline-block;
+  margin-top: 15px;
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+.back-home:hover {
+  text-decoration: underline;
+}
+
+/* 7. Dashboard Layout */
+.dashboard-body {
+  display: flex;
+  background: #f9f9f9;
+  font-family: 'Poppins', sans-serif;
+}
+
+.dashboard-container {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+}
+
+/* 8. Sidebar */
+.sidebar {
+  width: 240px;
+  background: linear-gradient(170deg, var(--primary-color), #d35400);
+  color: var(--text-light);
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar-logo {
+  text-align: center;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-grow: 1; /* Pushes logout to bottom */
+}
+
+.sidebar-nav a {
+  text-decoration: none;
+  color: var(--text-light);
+  padding: 10px 15px;
+  border-radius: 8px;
+  transition: var(--transition-fast);
+  border-left: 4px solid transparent;
+}
+
+.sidebar-nav a:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(5px);
+  border-left-color: var(--primary-hover);
+}
+
+.sidebar-nav a.active {
+  background: rgba(255, 255, 255, 0.2);
+  font-weight: 600;
+  border-left-color: var(--text-light);
+}
+
+.logout-btn {
+  background: var(--text-light);
+  color: var(--primary-color);
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: var(--transition-slow);
+}
+
+.logout-btn:hover {
+  background: var(--primary-light-focus);
+  color: #d35400;
+  transform: scale(1.03);
+  box-shadow: var(--shadow-md);
+}
+
+/* 9. Main Content */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 30px;
+  overflow-y: auto;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.topbar h1 {
+  color: var(--text-dark);
+}
+
+.user-info {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+/* 10. Dashboard Cards */
+.cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.card {
+  background: var(--text-light);
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+  padding: 20px;
+  text-align: center;
+  transition: transform var(--transition-slow), box-shadow var(--transition-slow);
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-lg);
+}
+
+.card h3 {
+  color: var(--primary-color);
+  margin-bottom: 10px;
+  transition: color var(--transition-fast);
+}
+
+.card:hover h3 {
+  color: var(--primary-hover);
+}
+
+.card p {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+/* 11. Module Sections & Tables */
+.module-section {
+  margin-top: 30px;
+  background: var(--text-light);
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.styled-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.styled-table th, .styled-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.styled-table th {
+  background: #f7f7f7;
+  color: var(--text-dark);
+}
+
+.styled-table tbody tr {
+  transition: background-color var(--transition-fast);
+}
+.styled-table tbody tr:hover {
+  background-color: var(--primary-light-focus);
+}
+
+.styled-table td button {
+  margin-right: 5px;
+  transition: transform var(--transition-fast);
+}
+.styled-table td button:hover {
+  transform: scale(1.1);
+}
+
+/* 12. Modals */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+  background: var(--text-light);
+  border-radius: 16px;
+  padding: 25px;
+  width: 100%;
+  max-width: 550px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+  animation: zoomIn 0.3s ease;
+}
+
+.modal-content input,
+.modal-content select {
+  transition: var(--transition-fast);
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+.modal-content input:focus,
+.modal-content select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-light-focus);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 15px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#menuTable img {
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+/* 13. Grid Cards (Tables, Inventory, Billing) */
+.tables-grid,
+.inventory-grid,
+.billing-orders-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.tables-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.inventory-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.billing-orders-list { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+
+
+.table-card,
+.inventory-card,
+.billing-card {
+  background: var(--text-light);
+  border: 1px solid var(--border-color);
+  padding: 1rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition-slow);
+}
+
+.table-card:hover,
+.inventory-card:hover,
+.billing-card:hover {
+  transform: translateY(-5px) scale(1.02);
+  box-shadow: var(--shadow-md);
+}
+
+.table-status {
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--text-light);
+}
+
+.status-available { background: var(--status-green); }
+.status-occupied { background: var(--status-red); }
+.status-reserved { background: var(--status-yellow); }
+
+.low-stock {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-left: 4px solid var(--status-red);
+}
+
+.inventory-actions button {
+  margin: 4px;
+  cursor: pointer;
+}
+
+#billDetails {
+  background: #fafafa;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 10px 0;
+  border: 1px dashed var(--border-color);
+}
+
+/* --- Misc Helper Classes --- */
+.form-group-row {
+  display: flex;
+  gap: 10px;
+}
+.form-group-row select,
+.form-group-row input {
+  width: auto !important;
+}
+
+.order-summary-list {
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--bg-page);
+}
+.order-summary-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--border-color);
+}
+.order-summary-item:last-child {
+  border-bottom: none;
+}
+
+.payment-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border-color);
+}
+
+.cards-container a {
+  text-decoration: none;
+}
+.cards-container a .card h3 {
+   color: var(--primary-color);
+}
+.cards-container a .card p {
+   color: var(--text-dark);
+}
+
+.bill-btn {
+  background-color: var(--primary-light-focus) !important;
+  color: var(--primary-color) !important;
+  font-weight: 600 !important;
+  padding: 8px !important;
+  border-radius: 8px;
+  border: 1px solid var(--primary-color);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.bill-btn:hover {
+  background-color: var(--primary-color) !important;
+  color: var(--text-light) !important;
+}

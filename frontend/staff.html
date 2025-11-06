@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Staff Management | SmartDine POS</title>
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body class="dashboard-body">
+  <div class="dashboard-container">
+    
+    <aside class="sidebar">
+      <h2 class="sidebar-logo">🍽️ SmartDine</h2>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-link">Dashboard</a>
+        <a href="staff.html" class="nav-link active">Staff Management</a>
+        <a href="menu.html" class="nav-link">Manage Menu</a>
+        <a href="orders.html" class="nav-link">Manage Orders</a>
+        <a href="tables.html" class="nav-link">Manage Tables</a>
+        <a href="inventory.html" class="nav-link">Manage Inventory</a>
+        <a href="billing.html" class="nav-link">Billing</a>
+        <a href="reports.html" class="nav-link">Sales Reports</a>
+      </nav>
+      <button id="logoutBtn" class="logout-btn">Logout</button>
+    </aside>
+
+    <main class="main-content">
+      <div class="topbar">
+        <h1>Staff Management</h1>
+        <div class="user-info">
+          <span id="adminName"></span>
+        </div>
+      </div>
+
+      <section id="staffSection" class="module-section">
+        <div class="section-header">
+          <h2>Staff Management</h2>
+          <button id="addStaffBtn" class="primary-btn">+ Add Staff</button>
+        </div>
+        <table class="styled-table" id="staffTable">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="staffBody"></tbody>
+        </table>
+      </section>
+
+      <div id="staffModal" class="modal hidden">
+        <div class="modal-content">
+          <h3 id="modalTitle">Add Staff</h3>
+          <form id="staffForm">
+            <input type="text" id="staffName" placeholder="Name" required />
+            <input type="email" id="staffEmail" placeholder="Email" required />
+            <input type="password" id="staffPassword" placeholder="Password" required />
+            <select id="staffRole" required>
+              <option value="staff">Staff</option>
+              <option value="admin">Admin</option>
+            </select>
+            <div class="modal-actions">
+              <button type="submit" class="primary-btn">Save</button>
+              <button type="button" id="cancelBtn" class="secondary-btn">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      
+    </main>
+  </div>
+  
+  <script src="js/dashboard.js"></script>
+  <script src="js/staff.js"></script>
+</body>
+</html>
