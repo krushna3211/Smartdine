@@ -248,7 +248,9 @@ document.addEventListener("DOMContentLoaded", () => {
               <option value="preparing" ${order.status === "preparing" ? "selected" : ""}>Preparing</option>
               <option value="completed" ${order.status === "completed" ? "selected" : ""}>Completed</option>
               <option value="delivered" ${order.status === "delivered" ? "selected" : ""}>Delivered</option>
-              <option value="paid" ${order.status === "paid" ? "selected" : ""}>Paid</option>
+              
+              ${order.status === 'paid' ? `<option value="paid" selected>Paid</option>` : ''}
+              
             </select>
           </td>
           <td>₹${order.total.toFixed(2)}</td>
