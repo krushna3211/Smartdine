@@ -59,7 +59,7 @@
   justify-content: center;
   min-height: 80vh;
   background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
-    url('../images/restaurant-bg.jpg') center/cover no-repeat;
+    url('../images/restaurant-staff.png') center/cover no-repeat;
   color: var(--text-light);
   text-align: center;
   padding: 2rem;
@@ -80,6 +80,7 @@
   margin-top: 15px;
   font-weight: 500;
   transition: var(--transition-slow);
+  text-decoration: none;
 }
 
 .cta-btn:hover {
