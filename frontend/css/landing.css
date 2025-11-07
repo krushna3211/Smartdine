@@ -107,3 +107,59 @@ footer {
   padding: 1rem;
   font-size: 0.9rem;
 }
+/* ---
+   6. Features Section
+   --- */
+.features {
+  padding: 4rem 10%;
+  text-align: center;
+  background-color: #f9f9f9; /* A very light gray to separate it */
+}
+
+.features h2 {
+  color: var(--primary-color);
+  margin-bottom: 2.5rem; /* More space for the cards */
+  font-size: 2rem;
+}
+
+.features-container {
+  display: grid;
+  /* This creates 2 columns on tablets, and 4 on desktop */
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.feature-card {
+  background: var(--text-light); /* White background */
+  padding: 2rem;
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+  text-align: left; /* Aligns card text */
+  transition: var(--transition-slow);
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-lg);
+}
+
+.feature-icon {
+  display: inline-block;
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  background: var(--primary-light-focus); /* Light orange */
+  padding: 0.75rem;
+  border-radius: 12px;
+}
+
+.feature-card h3 {
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-dark);
+}
+
+.feature-card p {
+  font-size: 0.95rem;
+  color: #555;
+  line-height: 1.6;
+}
