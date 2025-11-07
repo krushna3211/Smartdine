@@ -520,3 +520,81 @@
   gap: 0.5rem;
   width: auto !important; /* Make sure it doesn't try to be full-width */
 }
+/* --- Order Form Filter Group --- */
+.filter-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px; /* Space between filters and item select */
+}
+/* --- [NEW] Order Summary Item Styles --- */
+.order-summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center; /* Vertically centers the items */
+  gap: 10px; /* Adds space between elements */
+  padding: 8px 0; /* More padding */
+  border-bottom: 1px dashed var(--border-color);
+}
+.order-summary-item:last-child {
+  border-bottom: none;
+}
+
+.summary-item-name {
+  flex-grow: 1; /* Lets the name take up most space */
+  font-weight: 500;
+}
+
+/* This is the new [ - ] 1 [ + ] wrapper */
+.quantity-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: var(--primary-light-focus);
+  border-radius: 8px;
+}
+.qty-btn {
+  background: var(--primary-color);
+  color: var(--text-light);
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  line-height: 28px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.qty-btn:hover {
+  background: var(--primary-hover);
+}
+.qty-value {
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+/* --- End new wrapper --- */
+
+
+.summary-item-price {
+  min-width: 60px; /* Keeps prices aligned */
+  text-align: right;
+  font-weight: 500;
+}
+
+.remove-item-btn {
+  background: var(--status-red);
+  color: var(--text-light);
+  border: none;
+  border-radius: 50%; /* Makes it a circle */
+  width: 24px;
+  height: 24px;
+  line-height: 24px; /* Centers the '×' */
+  text-align: center;
+  padding: 0;
+  font-weight: bold;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.remove-item-btn:hover {
+  background: #c0392b; /* Darker red */
+}

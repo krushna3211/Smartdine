@@ -11,10 +11,11 @@ document.addEventListener("DOMContentLoaded", () => {
   let orderEditMode = false;
   let editOrderId = null;
 
-  // --- Element Definitions for ORDERS ---
+  // --- Element Definitions ---
   const ordersTableBody = document.getElementById("ordersBody");
   const addOrderBtn = document.getElementById("addOrderBtn");
   const orderModal = document.getElementById("orderModal");
+  // ... (all your other element definitions) ...
   const cancelOrderBtn = document.getElementById("cancelOrderBtn");
   const orderForm = document.getElementById("orderForm");
   const orderModalTitle = document.getElementById("orderModalTitle");
@@ -25,18 +26,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const addItemToOrderBtn = document.getElementById("addItemToOrderBtn");
   const orderSummary = document.getElementById("orderSummary");
   const orderTotalDisplay = document.getElementById("orderTotalDisplay");
-
-  // === NEW: Element Definitions for BILLING ===
+  const categoryFilter = document.getElementById("categoryFilter");
+  const itemSearch = document.getElementById("itemSearch");
   const billingModal = document.getElementById("billingModal");
   const billDetails = document.getElementById("billDetails");
   const printBillBtn = document.getElementById("printBillBtn");
   const closeBillBtn = document.getElementById("closeBillBtn");
   const paymentBtns = document.querySelectorAll("#paymentToggle .payment-btn");
   
-  let currentBillData = null; // To store the order data
-  let currentPaymentMethod = "Cash"; // Default payment method
+  let currentBillData = null; 
+  let currentPaymentMethod = "Cash"; 
 
-  // === NEW: Add click listeners for payment buttons ===
+  // --- Payment Button Listeners ---
   if (paymentBtns) {
     paymentBtns.forEach(btn => {
       btn.addEventListener("click", () => {
@@ -47,26 +48,45 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // --- Load All Menu Items ---
-  async function loadMenuItems() {
+  // --- Load All Menu Items & Categories ---
+  async function loadMenuItemsAndCategories() {
     try {
       const res = await fetch("http://localhost:5000/api/menu", {
         headers: { Authorization: `Bearer ${token}` },
       });
       menuItems = await res.json(); 
 
-      if (menuItemSelect) {
-        menuItemSelect.innerHTML = '<option value="">-- Select an item --</option>';
-        menuItems.forEach(item => {
-          if (item.available) {
-            const option = document.createElement('option');
-            option.value = item._id;
-            option.textContent = `${item.name} - ₹${item.price}`;
-            menuItemSelect.appendChild(option);
-          }
+      if (categoryFilter) {
+        const categories = [...new Set(menuItems.map(item => item.category))];
+        categoryFilter.innerHTML = '<option value="all">All Categories</option>'; 
+        categories.forEach(category => {
+          const option = document.createElement('option');
+          option.value = category;
+          option.textContent = category;
+          categoryFilter.appendChild(option);
         });
       }
+      renderMenuItemDropdown(); 
     } catch (err) { console.error("Failed to load menu items", err); }
+  }
+  
+  // --- Render the menu dropdown based on filters ---
+  function renderMenuItemDropdown() {
+    if (!menuItemSelect) return;
+    const category = categoryFilter.value;
+    const search = itemSearch.value.toLowerCase();
+    menuItemSelect.innerHTML = '<option value="">-- Select an item --</option>';
+    menuItems.forEach(item => {
+      if (!item.available) return; 
+      const categoryMatch = (category === 'all' || item.category === category);
+      const searchMatch = (item.name.toLowerCase().includes(search));
+      if (categoryMatch && searchMatch) {
+        const option = document.createElement('option');
+        option.value = item._id;
+        option.textContent = `${item.name} - ₹${item.price}`;
+        menuItemSelect.appendChild(option);
+      }
+    });
   }
 
   // --- Load Available Tables ---
@@ -76,7 +96,6 @@ document.addEventListener("DOMContentLoaded", () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       const tables = await res.json();
-
       if (orderTable) {
         orderTable.innerHTML = '<option value="">-- Select an available table --</option>';
         tables.forEach(table => {
@@ -91,7 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) { console.error("Failed to load tables", err); }
   }
 
-  // --- Build Order Summary ---
+  // --- [UPDATED] Build Order Summary ---
   function renderOrderSummary() {
     if (!orderSummary) return;
     if (currentOrderItems.length === 0) {
@@ -99,17 +118,55 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     orderSummary.innerHTML = ""; 
-    currentOrderItems.forEach((item) => {
+    currentOrderItems.forEach((item, index) => { 
       const itemEl = document.createElement('div');
       itemEl.classList.add('order-summary-item');
+      
+      // --- THIS IS THE FIX ---
+      // Replaced the <input> with the new quantity-control div
       itemEl.innerHTML = `
-        <span>${item.name} (x${item.quantity})</span>
-        <span>₹${(item.price * item.quantity).toFixed(2)}</span>
+        <span class="summary-item-name">${item.name}</span>
+        <div class="quantity-control">
+          <button type="button" class="qty-btn" onclick="decrementQuantity(${index})">-</button>
+          <span class="qty-value">${item.quantity}</span>
+          <button type="button" class="qty-btn" onclick="incrementQuantity(${index})">+</button>
+        </div>
+        <span class="summary-item-price">₹${(item.price * item.quantity).toFixed(2)}</span>
+        <button type="button" class="remove-item-btn" onclick="removeItemFromOrder(${index})">×</button>
       `;
+      // --- END FIX ---
+      
       orderSummary.appendChild(itemEl);
     });
   }
+  
+  // --- [NEW] Quantity & Remove Functions ---
+  
+  // Increments quantity
+  window.incrementQuantity = function(index) {
+    currentOrderItems[index].quantity++;
+    renderOrderSummary();
+    calculateTotal();
+  }
 
+  // Decrements quantity (but stops at 1)
+  window.decrementQuantity = function(index) {
+    if (currentOrderItems[index].quantity > 1) {
+      currentOrderItems[index].quantity--;
+      renderOrderSummary();
+      calculateTotal();
+    }
+    // If quantity is 1, it does nothing. User must click '×' to remove.
+  }
+
+  // Removes item from cart
+  window.removeItemFromOrder = function(index) {
+    currentOrderItems.splice(index, 1); // Remove the item
+    renderOrderSummary();
+    calculateTotal();
+  }
+
+  // --- Calculate Total ---
   function calculateTotal() {
     let total = 0;
     currentOrderItems.forEach(item => {
@@ -130,20 +187,34 @@ document.addEventListener("DOMContentLoaded", () => {
       if (isNaN(quantity) || quantity < 1) return alert("Please enter a valid quantity.");
       const itemDetails = menuItems.find(item => item._id === selectedItemId);
       if (!itemDetails) return alert("Error finding item details.");
-      currentOrderItems.push({
-        name: itemDetails.name,
-        price: itemDetails.price,
-        quantity: quantity
-      });
+
+      const existingItem = currentOrderItems.find(item => item.name === itemDetails.name);
+      if (existingItem) {
+        existingItem.quantity += quantity;
+      } else {
+        currentOrderItems.push({
+          name: itemDetails.name,
+          price: itemDetails.price,
+          quantity: quantity
+        });
+      }
       renderOrderSummary();
       calculateTotal();
       menuItemSelect.value = "";
       itemQuantity.value = "1";
+      itemSearch.value = "";
     });
   }
+  
+  // --- Add event listeners for filters ---
+  if (categoryFilter) {
+    categoryFilter.addEventListener("change", renderMenuItemDropdown);
+  }
+  if (itemSearch) {
+    itemSearch.addEventListener("keyup", renderMenuItemDropdown);
+  }
 
-  // --- Load all orders (UPDATED) ---
-  // Now includes the "Time Placed" column
+  // --- Load all orders (Time Placed) ---
   async function loadOrders() {
     if (!ordersTableBody) return; 
     const res = await fetch("http://localhost:5000/api/orders", {
@@ -153,15 +224,9 @@ document.addEventListener("DOMContentLoaded", () => {
     ordersTableBody.innerHTML = "";
     data.forEach((order) => {
       const itemsList = order.items.map(item => `${item.name} (x${item.quantity})`).join(", ");
-      
-      // --- 1. NEW: Format the time ---
       const placedTime = new Date(order.createdAt).toLocaleTimeString('en-IN', {
-        hour: '2-digit', 
-        minute: '2-digit', 
-        hour12: true
+        hour: '2-digit', minute: '2-digit', hour12: true
       });
-
-      // --- START: Build Actions Buttons ---
       let actionButtons = `
         <button class="admin-only" onclick='editOrder(${JSON.stringify(order)})'>✏️</button>
         <button class="admin-only" onclick="deleteOrder('${order._id}')">🗑️</button>
@@ -171,15 +236,11 @@ document.addEventListener("DOMContentLoaded", () => {
           <button class="bill-btn" onclick='openBill(${JSON.stringify(order)})'>🧾</button>
         `;
       }
-      // --- END NEW LOGIC ---
-
       const row = `
         <tr>
           <td>${order._id.slice(-6)}</td>
           <td>${order.table}</td>
-          
           <td>${placedTime}</td>
-
           <td>${itemsList}</td>
           <td>
             <select onchange="updateOrderStatus('${order._id}', this.value)" ${order.status === 'paid' ? 'disabled' : ''}>
@@ -196,7 +257,6 @@ document.addEventListener("DOMContentLoaded", () => {
       `;
       ordersTableBody.insertAdjacentHTML("beforeend", row);
     });
-
     if (role === 'staff') {
       document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
     }
@@ -211,23 +271,20 @@ document.addEventListener("DOMContentLoaded", () => {
       const total = calculateTotal();
       if (currentOrderItems.length === 0) return alert("Cannot save an empty order.");
       if (!table) return alert("Please select an available table.");
-
       const method = orderEditMode ? "PUT" : "POST";
       const url = orderEditMode
         ? `http://localhost:5000/api/orders/${editOrderId}`
         : "http://localhost:5000/api/orders";
-
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ table, items: currentOrderItems, total, status }),
       });
-
       const data = await res.json();
       alert(data.message || "Order saved!");
       closeOrderModal();
-      loadOrders(); // Refresh orders table
-      loadAvailableTables(); // Refresh table list (in case we used a table)
+      loadOrders(); 
+      loadAvailableTables(); 
     });
   }
 
@@ -261,9 +318,9 @@ document.addEventListener("DOMContentLoaded", () => {
       body: JSON.stringify({ status: newStatus }),
     });
     if (newStatus === 'completed' || newStatus === 'delivered') {
-      loadAvailableTables(); // Refresh available tables
+      loadAvailableTables(); 
     }
-    loadOrders(); // Refresh the order list to show the new "Bill" button
+    loadOrders(); 
   }
 
   window.deleteOrder = async function (id) {
@@ -277,6 +334,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Order Modal controls ---
   function openOrderModal() { if (orderModal) orderModal.classList.remove("hidden"); }
+  
   function closeOrderModal() {
     if (orderModal) orderModal.classList.add("hidden");
     orderEditMode = false;
@@ -285,7 +343,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (orderForm) orderForm.reset();
     renderOrderSummary();
     calculateTotal();
+    if(categoryFilter) categoryFilter.value = "all";
+    if(itemSearch) itemSearch.value = "";
+    renderMenuItemDropdown(); 
   }
+  
   if (addOrderBtn) {
     addOrderBtn.addEventListener("click", () => {
       orderEditMode = false;
@@ -295,7 +357,10 @@ document.addEventListener("DOMContentLoaded", () => {
       currentOrderItems = [];
       renderOrderSummary();
       calculateTotal();
-      loadAvailableTables(); // Refresh table list every time
+      loadAvailableTables();
+      if(categoryFilter) categoryFilter.value = "all";
+      if(itemSearch) itemSearch.value = "";
+      renderMenuItemDropdown(); 
       openOrderModal();
     });
   }
@@ -303,7 +368,7 @@ document.addEventListener("DOMContentLoaded", () => {
     cancelOrderBtn.addEventListener("click", closeOrderModal);
   }
 
-  // === NEW: Billing Modal Functions (from billing.js) ===
+  // === Billing Modal Functions ===
   window.openBill = function(order) {
     currentBillData = order; 
     const tax = order.total * 0.05; 
@@ -370,8 +435,8 @@ document.addEventListener("DOMContentLoaded", () => {
         w.print();
         w.close();
         
-        closeBillModal(); // Use the dedicated close function
-        loadOrders(); // Refresh the orders list
+        closeBillModal(); 
+        loadOrders(); 
       
       } catch (err) {
         console.error("Failed to finalize payment:", err);
@@ -401,6 +466,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Initial load ---
   loadOrders(); 
-  loadMenuItems();
+  loadMenuItemsAndCategories();
   
 });
