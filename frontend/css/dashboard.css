@@ -325,6 +325,7 @@
 
 .modal-content input,
 .modal-content select {
+  width: 100%;
   transition: var(--transition-fast);
   padding: 8px;
   border: 1px solid var(--border-color);
@@ -474,4 +475,23 @@
 .bill-btn:hover {
   background-color: var(--primary-color) !important;
   color: var(--text-light) !important;
+}
+
+/* --- Fixes for Modal Forms --- */
+.modal-content form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem; /* This adds space between inputs */
+}
+
+.modal-content form label {
+  font-weight: 500;
+  margin-bottom: -5px; /* Pulls label closer to its input */
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end; /* Pushes buttons to the right */
+  gap: 0.5rem; /* Adds space between buttons */
+  margin-top: 15px;
 }
