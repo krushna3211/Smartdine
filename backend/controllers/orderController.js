@@ -65,7 +65,7 @@ export const updateOrder = async (req, res) => {
   }
 };
 
-// 🟡 Update order STATUS (FIXED)
+// 🟡 Update order STATUS (CORRECTED)
 export const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -79,23 +79,13 @@ export const updateOrderStatus = async (req, res) => {
 
     if (!order) return res.status(404).json({ message: 'Order not found' });
     
-    if (status === 'completed' || status === 'delivered') {
-      // --- THIS IS THE FIX ---
-      // Convert the order's table string (e.g., "4") to a number
-      const tableToUpdate = await Table.findOne({ number: Number(order.table) });
-      // --- END FIX ---
-      if (tableToUpdate) {
-        tableToUpdate.status = 'available';
-        await tableToUpdate.save();
-      }
-    }
+    // The logic to free the table has been removed.
 
     res.json(order);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
-
 // 🔴 Delete order (No change needed)
 export const deleteOrder = async (req, res) => {
   try {
@@ -109,13 +99,11 @@ export const deleteOrder = async (req, res) => {
   }
 };
 
-// ... (at the end of your file, after deleteOrder)
-
-// 🟢 Mark an order as paid (Staff & Admin)
+// 🟢 Mark an order as paid (CORRECTED)
 export const payOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const { paymentMethod } = req.body; // Get payment method from frontend
+    const { paymentMethod } = req.body; 
 
     // Find the order
     const order = await Order.findById(id);
@@ -127,6 +115,15 @@ export const payOrder = async (req, res) => {
     order.paidAt = Date.now();
     
     await order.save();
+
+    // --- THIS IS THE FIX ---
+    // Now that the order is paid, free the table.
+    const tableToUpdate = await Table.findOne({ number: Number(order.table) });
+    if (tableToUpdate) {
+      tableToUpdate.status = 'available';
+      await tableToUpdate.save();
+    }
+    // --- END FIX ---
 
     res.json({ message: 'Order marked as paid', order });
 
