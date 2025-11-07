@@ -71,18 +71,28 @@
     <div class="modal-content">
       <h3 id="menuModalTitle">Add Menu Item</h3>
       <form id="menuForm">
-        <input type="text" id="menuName" placeholder="Item Name" required />
-        <input type="text" id="menuCategory" placeholder="Category (e.g. Starters)" required />
-        <input type="number" id="menuPrice" placeholder="Price" required />
-        <input type="text" id="menuImage" placeholder="Image URL (optional)" />
-        <label>
-          <input type="checkbox" id="menuAvailable" checked /> Available
-        </label>
-        <div class="modal-actions">
-          <button type="submit" class="primary-btn">Save</button>
-          <button type="button" id="cancelMenuBtn" class="secondary-btn">Cancel</button>
-        </div>
-      </form>
+          
+          <label for="menuName">Item Name:</label>
+          <input type="text" id="menuName" placeholder="Item Name" required />
+          
+          <label for="menuCategory">Category:</label>
+          <input type="text" id="menuCategory" placeholder="e.g. Starters" required />
+          
+          <label for="menuPrice">Price (₹):</label>
+          <input type="number" id="menuPrice" placeholder="Price" required />
+          
+          <label for="menuImage">Image URL:</label>
+          <input type="text" id="menuImage" placeholder="Image URL (optional)" />
+          
+          <label class="checkbox-label" for="menuAvailable">
+            <input type="checkbox" id="menuAvailable" checked /> Available
+          </label>
+          
+          <div class="modal-actions">
+            <button type="button" id="cancelMenuBtn" class="secondary-btn">Cancel</button>
+            <button type="submit" class="primary-btn">Save</button>
+          </div>
+        </form>
     </div>
   </div>
   

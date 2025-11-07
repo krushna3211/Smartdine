@@ -299,7 +299,18 @@
   transform: scale(1.1);
 }
 
-/* 12. Modals */
+/* 12. Modals (FIXED)
+   -------------------------------- */
+/* Animation keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .modal {
   position: fixed;
   top: 0;
@@ -323,7 +334,24 @@
   animation: zoomIn 0.3s ease;
 }
 
-.modal-content input,
+/* --- NEW FORM STYLES --- */
+.modal-content form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem; /* Adds space between inputs */
+}
+
+.modal-content form label {
+  font-weight: 500;
+  margin-bottom: -5px; /* Pulls label closer to its input */
+}
+
+/* Make inputs full-width, but EXCLUDE checkboxes */
+.modal-content input[type="text"],
+.modal-content input[type="email"],
+.modal-content input[type="password"],
+.modal-content input[type="number"],
+.modal-content textarea,
 .modal-content select {
   width: 100%;
   transition: var(--transition-fast);
@@ -331,6 +359,13 @@
   border: 1px solid var(--border-color);
   border-radius: 8px;
 }
+
+/* Fix for checkbox width */
+.modal-content input[type="checkbox"] {
+  width: auto;
+}
+
+/* Focus rings for modal forms */
 .modal-content input:focus,
 .modal-content select:focus {
   outline: none;
@@ -340,7 +375,8 @@
 
 .modal-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end; /* Pushes buttons to the right */
+  gap: 0.5rem; /* Adds space between buttons */
   margin-top: 15px;
 }
 
@@ -477,21 +513,10 @@
   color: var(--text-light) !important;
 }
 
-/* --- Fixes for Modal Forms --- */
-.modal-content form {
+/* Fixes alignment for checkboxes in modals */
+.checkbox-label {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem; /* This adds space between inputs */
-}
-
-.modal-content form label {
-  font-weight: 500;
-  margin-bottom: -5px; /* Pulls label closer to its input */
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end; /* Pushes buttons to the right */
-  gap: 0.5rem; /* Adds space between buttons */
-  margin-top: 15px;
+  align-items: center;
+  gap: 0.5rem;
+  width: auto !important; /* Make sure it doesn't try to be full-width */
 }
