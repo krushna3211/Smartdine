@@ -334,16 +334,60 @@
   animation: zoomIn 0.3s ease;
 }
 
-/* --- NEW FORM STYLES --- */
+/* --- [NEW] Professional Modal Form Styles --- */
 .modal-content form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem; /* Adds space between inputs */
+  gap: 1.25rem; /* Consistent spacing between form groups */
 }
 
+/* Style all labels consistently */
 .modal-content form label {
-  font-weight: 500;
-  margin-bottom: -5px; /* Pulls label closer to its input */
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* A helper for stacking label + input */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* Space between label and input */
+}
+
+/* Fix horizontal spacing in rows */
+.form-group-row, .filter-group {
+  gap: 15px;
+  align-items: flex-end; /* Aligns inputs nicely */
+}
+
+/* Remove default margins from inputs */
+.modal-content input,
+.modal-content select {
+  margin-top: 0;
+}
+
+/* New Footer for Total + Buttons */
+.modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.modal-footer h2 { /* The "Total:..." text */
+  color: var(--primary-color);
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+/* Override old modal-actions styling */
+.modal-actions {
+  margin-top: 0;
+  justify-content: flex-end;
 }
 
 /* Make inputs full-width, but EXCLUDE checkboxes */

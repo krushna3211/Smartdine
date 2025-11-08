@@ -28,6 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const orderTotalDisplay = document.getElementById("orderTotalDisplay");
   const categoryFilter = document.getElementById("categoryFilter");
   const itemSearch = document.getElementById("itemSearch");
+  const statusGroup = document.getElementById("statusGroup");
   const billingModal = document.getElementById("billingModal");
   const billDetails = document.getElementById("billDetails");
   const printBillBtn = document.getElementById("printBillBtn");
@@ -293,6 +294,7 @@ document.addEventListener("DOMContentLoaded", () => {
     orderEditMode = true;
     editOrderId = order._id;
     orderModalTitle.textContent = "Edit Order";
+    if (statusGroup) statusGroup.style.display = "block";
     loadAvailableTables().then(() => {
       let tableInList = Array.from(orderTable.options).some(opt => opt.value === order.table);
       if (!tableInList) {
@@ -340,6 +342,7 @@ document.addEventListener("DOMContentLoaded", () => {
     orderEditMode = false;
     editOrderId = null;
     currentOrderItems = [];
+    if (statusGroup) statusGroup.style.display = "block";
     if (orderForm) orderForm.reset();
     renderOrderSummary();
     calculateTotal();
@@ -354,6 +357,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (orderForm) orderForm.reset();
       orderStatus.value = "pending";
       if (orderModalTitle) orderModalTitle.textContent = "New Order";
+      if (statusGroup) statusGroup.style.display = "none";
       currentOrderItems = [];
       renderOrderSummary();
       calculateTotal();
