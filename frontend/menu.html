@@ -76,7 +76,14 @@
           <input type="text" id="menuName" placeholder="Item Name" required />
           
           <label for="menuCategory">Category:</label>
-          <input type="text" id="menuCategory" placeholder="e.g. Starters" required />
+            <select id="menuCategory" required>
+              <option value="">-- Select a Category --</option>
+              <option value="Starters / Appetizers">Starters / Appetizers</option>
+              <option value="Main Course">Main Course</option>
+              <option value="Sides">Sides</option>
+              <option value="Desserts">Desserts</option>
+              <option value="Beverages">Beverages</option>
+            </select>
           
           <label for="menuPrice">Price (₹):</label>
           <input type="number" id="menuPrice" placeholder="Price" required />

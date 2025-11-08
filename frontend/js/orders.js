@@ -48,17 +48,26 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // --- Load All Menu Items & Categories ---
+  // --- [UPDATED] Load All Menu Items & Categories ---
   async function loadMenuItemsAndCategories() {
     try {
       const res = await fetch("http://localhost:5000/api/menu", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      menuItems = await res.json(); 
+      menuItems = await res.json(); // Save to global state
 
+      // --- THIS IS THE FIX ---
+      // We no longer scan for categories. We use the fixed list.
       if (categoryFilter) {
-        const categories = [...new Set(menuItems.map(item => item.category))];
-        categoryFilter.innerHTML = '<option value="all">All Categories</option>'; 
+        const categories = [
+          "Starters / Appetizers",
+          "Main Course",
+          "Sides",
+          "Desserts",
+          "Beverages"
+        ];
+        
+        categoryFilter.innerHTML = '<option value="all">All Categories</option>'; // Reset
         categories.forEach(category => {
           const option = document.createElement('option');
           option.value = category;
@@ -66,6 +75,8 @@ document.addEventListener("DOMContentLoaded", () => {
           categoryFilter.appendChild(option);
         });
       }
+      // --- END FIX ---
+      
       renderMenuItemDropdown(); 
     } catch (err) { console.error("Failed to load menu items", err); }
   }
@@ -110,7 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) { console.error("Failed to load tables", err); }
   }
 
-  // --- [UPDATED] Build Order Summary ---
+  // --- Build Order Summary ---
   function renderOrderSummary() {
     if (!orderSummary) return;
     if (currentOrderItems.length === 0) {
@@ -121,9 +132,6 @@ document.addEventListener("DOMContentLoaded", () => {
     currentOrderItems.forEach((item, index) => { 
       const itemEl = document.createElement('div');
       itemEl.classList.add('order-summary-item');
-      
-      // --- THIS IS THE FIX ---
-      // Replaced the <input> with the new quantity-control div
       itemEl.innerHTML = `
         <span class="summary-item-name">${item.name}</span>
         <div class="quantity-control">
@@ -134,34 +142,27 @@ document.addEventListener("DOMContentLoaded", () => {
         <span class="summary-item-price">₹${(item.price * item.quantity).toFixed(2)}</span>
         <button type="button" class="remove-item-btn" onclick="removeItemFromOrder(${index})">×</button>
       `;
-      // --- END FIX ---
-      
       orderSummary.appendChild(itemEl);
     });
   }
   
-  // --- [NEW] Quantity & Remove Functions ---
-  
-  // Increments quantity
+  // --- Quantity & Remove Functions ---
   window.incrementQuantity = function(index) {
     currentOrderItems[index].quantity++;
     renderOrderSummary();
     calculateTotal();
   }
 
-  // Decrements quantity (but stops at 1)
   window.decrementQuantity = function(index) {
     if (currentOrderItems[index].quantity > 1) {
       currentOrderItems[index].quantity--;
       renderOrderSummary();
       calculateTotal();
     }
-    // If quantity is 1, it does nothing. User must click '×' to remove.
   }
 
-  // Removes item from cart
   window.removeItemFromOrder = function(index) {
-    currentOrderItems.splice(index, 1); // Remove the item
+    currentOrderItems.splice(index, 1);
     renderOrderSummary();
     calculateTotal();
   }
@@ -187,7 +188,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (isNaN(quantity) || quantity < 1) return alert("Please enter a valid quantity.");
       const itemDetails = menuItems.find(item => item._id === selectedItemId);
       if (!itemDetails) return alert("Error finding item details.");
-
       const existingItem = currentOrderItems.find(item => item.name === itemDetails.name);
       if (existingItem) {
         existingItem.quantity += quantity;
@@ -248,9 +248,7 @@ document.addEventListener("DOMContentLoaded", () => {
               <option value="preparing" ${order.status === "preparing" ? "selected" : ""}>Preparing</option>
               <option value="completed" ${order.status === "completed" ? "selected" : ""}>Completed</option>
               <option value="delivered" ${order.status === "delivered" ? "selected" : ""}>Delivered</option>
-              
               ${order.status === 'paid' ? `<option value="paid" selected>Paid</option>` : ''}
-              
             </select>
           </td>
           <td>₹${order.total.toFixed(2)}</td>
