@@ -1,15 +1,32 @@
 import Order from '../models/Order.js';
 import Table from '../models/Table.js';
 
-// 🟢 Get all orders (This is now simpler)
+// 🟢 Get all orders (UPDATED)
 export const getOrders = async (req, res) => {
   try {
-    // No .populate() needed, just find all orders
-    const orders = await Order.find();
-    res.json(orders);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+    const { period } = req.query; // Check for a query param like ?period=today
+
+    let query = {}; // Start with an empty query (gets all orders)
+
+    // If the frontend asks for "today", we build a date filter
+    if (period === 'today') {
+      const startDate = new Date();
+      startDate.setHours(0, 0, 0, 0); // Start of today
+      const endDate = new Date();
+      endDate.setHours(23, 59, 59, 999); // End of today
+      
+      query = { createdAt: { $gte: startDate, $lte: endDate } };
+    }
+    
+    // Find orders based on the query
+    // If query is empty, it finds all (which is what billing.js needs)
+    // If query has a date, it finds only today's (for orders.js)
+    const orders = await Order.find(query);
+    
+    res.json(orders);
+  } catch (err) {
+ res.status(500).json({ message: err.message });
+ }
 };
 
 // 🟢 Create a new order (FIXED)

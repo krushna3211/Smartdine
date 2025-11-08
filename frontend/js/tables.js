@@ -16,8 +16,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let tableEditMode = false;
   let editTableId = null;
 
+  // --- Load Tables (UPDATED with 'reserved' check) ---
   async function loadTables() {
-    if (!tablesGrid) return; 
+    if (!tablesGrid) return; // Make sure element exists
 
     const res = await fetch("http://localhost:5000/api/tables", {
       headers: { Authorization: `Bearer ${token}` },
@@ -30,25 +31,38 @@ document.addEventListener("DOMContentLoaded", () => {
       card.classList.add("table-card", `status-${table.status}`);
       const displayStatus = table.status.charAt(0).toUpperCase() + table.status.slice(1);
 
+      // --- THIS IS THE NEW LOGIC ---
+      let changeStatusBtn = ''; // Start with no button
+
+      // Show the button ONLY if:
+      // 1. The user is an admin (admins can do anything)
+      // OR
+      // 2. The user is staff AND the table is NOT 'reserved'
+      if (role === 'admin' || (role === 'staff' && table.status !== 'reserved')) {
+        changeStatusBtn = `<button onclick="changeStatus('${table._id}', '${table.status}')">🔁</button>`;
+      }
+      // --- END NEW LOGIC ---
+
       card.innerHTML = `
         <h3>Table ${table.number}</h3>
         <span class="table-status status-${table.status}">${displayStatus}</span>
         <div>
-          <button onclick="changeStatus('${table._id}', '${table.status}')">🔁</button>
+          ${changeStatusBtn}
           <button class="admin-only" onclick="editTable('${table._id}', '${table.number}', '${table.status}')">✏️</button>
           <button class="admin-only" onclick="deleteTable('${table._id}')">🗑️</button>
         </div>
       `;
+
       tablesGrid.appendChild(card);
     });
 
+    // This part is still needed to hide the admin buttons for staff
     if (role === 'staff') {
       document.querySelectorAll('.admin-only').forEach(el => {
         el.style.display = 'none';
       });
     }
   }
-
   // --- Change status (Staff & Admin) ---
   // Attaching to 'window' makes it global
   window.changeStatus = async function (id, currentStatus) {

@@ -218,7 +218,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Load all orders (Time Placed) ---
   async function loadOrders() {
     if (!ordersTableBody) return; 
-    const res = await fetch("http://localhost:5000/api/orders", {
+    const res = await fetch("http://localhost:5000/api/orders?period=today", {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();

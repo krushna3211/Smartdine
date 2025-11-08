@@ -60,27 +60,38 @@ export const updateTable = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
-// 🟡 Update Table STATUS (Staff & Admin)
-// --- THIS IS THE NEW FUNCTION THAT FIXES YOUR SERVER ---
-// This is the new staff-safe function (PUT /api/tables/:id/status)
+// 🟡 Update Table STATUS (Staff & Admin) - SECURED
 export const updateTableStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body; // ONLY gets status
+    const { status } = req.body; // This is the NEW status
+    const userRole = req.user.role; // Get the user's role from the token
 
-    const table = await Table.findByIdAndUpdate(
-      id,
-      { status: status }, // Updates ONLY the status
-      { new: true }
-    );
+    // --- THIS IS THE NEW LOGIC ---
+    // 1. Find the table first, *before* updating
+    const table = await Table.findById(id);
+    if (!table) {
+      return res.status(404).json({ message: 'Table not found' });
+    }
 
-    if (!table) return res.status(404).json({ message: 'Table not found' });
-    res.json(table);
+    // 2. Check for the security rule
+    if (table.status === 'reserved' && userRole === 'staff') {
+      return res.status(403).json({ 
+        message: 'Access denied. Only an admin can change the status of a reserved table.' 
+      });
+    }
+    // --- END NEW LOGIC ---
+
+    // 3. If the check passes, update the table
+    table.status = status;
+    await table.save();
+
+    res.json(table); // Send back the updated table
+
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
-// --- END FIX ---
 
 
 // 🔴 Delete table (Admin only)
