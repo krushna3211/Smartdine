@@ -87,13 +87,25 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- Delete (Admin only) ---
-  window.deleteTable = async function (id) {
-    if (!confirm("Delete this table?")) return;
-    await fetch(`http://localhost:5000/api/tables/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    loadTables();
+ window.deleteTable = async function (id) {
+    // Use SweetAlert
+    if (await confirmDelete("this table")) {
+      try {
+        const res = await fetch(`http://localhost:5000/api/tables/${id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (res.ok) {
+          showToast("Table deleted successfully", "success");
+          loadTables();
+        } else {
+          showToast("Failed to delete table", "error");
+        }
+      } catch (err) {
+        showToast("Server error", "error");
+      }
+    }
   }
 
   // --- Edit Table (Admin only) ---
@@ -106,15 +118,15 @@ document.addEventListener("DOMContentLoaded", () => {
     openTableModal();
   }
 
-  // --- Add/Edit Submit (Admin-only) ---
+ // --- Add/Edit Table Submit ---
   if (tableForm) {
     tableForm.addEventListener("submit", async (e) => {
       e.preventDefault();
+      // ... (keep your variable definitions) ...
       const number = tableNumber.value;
-      const status = tableStatus.value; 
+      const status = tableStatus.value;
+
       const method = tableEditMode ? "PUT" : "POST";
-      
-      // Admin uses the main PUT route
       const url = tableEditMode
         ? `http://localhost:5000/api/tables/${editTableId}`
         : "http://localhost:5000/api/tables";
@@ -129,12 +141,17 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       const data = await res.json();
-      alert(data.message || "Table saved!");
-      closeTableModal();
-      loadTables();
+      
+      // Use Toast
+      if (res.ok) {
+        showToast(data.message || "Table saved successfully!", "success");
+        closeTableModal();
+        loadTables();
+      } else {
+        showToast(data.message || "Error saving table", "error");
+      }
     });
   }
-
   // --- Modal controls ---
   if (addTableBtn) {
     addTableBtn.addEventListener("click", () => {

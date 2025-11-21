@@ -59,14 +59,26 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- Delete (Admin only) ---
+// --- Delete Inventory Item ---
   window.deleteInventory = async function (id) {
-    if (!confirm("Delete this inventory item?")) return;
-    await fetch(`http://localhost:5000/api/inventory/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    loadInventory();
+    // Use SweetAlert
+    if (await confirmDelete("this inventory item")) {
+      try {
+        const res = await fetch(`http://localhost:5000/api/inventory/${id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (res.ok) {
+          showToast("Item deleted successfully", "success");
+          loadInventory();
+        } else {
+          showToast("Failed to delete item", "error");
+        }
+      } catch (err) {
+        showToast("Server error", "error");
+      }
+    }
   }
 
   // --- Edit (Admin only) ---
@@ -81,11 +93,11 @@ document.addEventListener("DOMContentLoaded", () => {
     openInventoryModal();
   }
 
-  // --- Add/Edit Submit ---
+  // --- Add/Edit Inventory Submit ---
   if (inventoryForm) {
     inventoryForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-
+      // ... (keep variable definitions) ...
       const name = itemName.value;
       const quantity = parseFloat(itemQuantity.value);
       const unit = itemUnit.value;
@@ -105,9 +117,15 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       const data = await res.json();
-      alert(data.message || "Item saved!");
-      closeInventoryModal();
-      loadInventory();
+      
+      // Use Toast
+      if (res.ok) {
+        showToast(data.message || "Inventory item saved!", "success");
+        closeInventoryModal();
+        loadInventory();
+      } else {
+        showToast(data.message || "Error saving item", "error");
+      }
     });
   }
 

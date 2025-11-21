@@ -58,11 +58,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- Add/Edit Menu Item ---
+  // --- Add/Edit Menu Item Submit ---
   if (menuForm) {
     menuForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-
+      // ... (your variable definitions: name, category, etc. keep them!) ...
       const name = menuName.value;
       const category = menuCategory.value;
       const price = parseFloat(menuPrice.value);
@@ -84,21 +84,40 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       const data = await res.json();
-      alert(data.message || "Saved successfully!");
-      closeMenuModal();
-      loadMenu();
+      
+      // Use Toast for success/failure
+      if (res.ok) {
+        showToast(data.message || "Menu item saved successfully!", "success");
+        closeMenuModal();
+        loadMenu();
+      } else {
+        showToast(data.message || "Error saving item", "error");
+      }
     });
   }
 
   // --- Delete Menu Item ---
   window.deleteMenu = async function (id) {
-    if (!confirm("Delete this item?")) return;
-    await fetch(`http://localhost:5000/api/menu/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    loadMenu();
+    // Use SweetAlert for confirmation
+    if (await confirmDelete("this menu item")) {
+      try {
+        const res = await fetch(`http://localhost:5000/api/menu/${id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (res.ok) {
+          showToast("Menu item deleted successfully", "success");
+          loadMenu();
+        } else {
+          showToast("Failed to delete item", "error");
+        }
+      } catch (err) {
+        showToast("Server error", "error");
+      }
+    }
   }
+
 
   // --- Edit Menu Item ---
   window.editMenu = function (id, name, category, price, available, image) {
