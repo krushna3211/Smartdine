@@ -51,9 +51,15 @@
 
       <section id="billingSection" class="module-section">
         <div class="section-header">
-          <h2>Orders Ready for Bill</h2>
+          <h2>Billing</h2>
+          
+          <div class="role-toggle" id="billingTabToggle">
+            <button class="payment-btn active" data-view="pending">Pending</button>
+            <button class="payment-btn" data-view="history">History</button>
+          </div>
           <button id="refreshBillsBtn" class="primary-btn">↻ Refresh</button>
         </div>
+        
         <div class="billing-orders-list" id="ordersToBill">
           </div>
       </section>
