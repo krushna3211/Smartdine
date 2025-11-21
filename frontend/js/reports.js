@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", () => {
     doc.text(title, 14, 30);
     
     doc.setFontSize(12);
-    doc.text(`Total Sales: ₹${currentReportData.totalSales}`, 14, 42);
+    doc.text(`Total Sales: Rs. ${currentReportData.totalSales}`, 14, 42);
     doc.text(`Total Orders: ${currentReportData.totalOrders}`, 14, 48);
 
     // Prepare the data for the table
@@ -133,7 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const tableRows = [];
     currentReportData.orders.forEach(order => {
       const paidTime = new Date(order.paidAt).toLocaleString('en-IN');
-      const total = `₹${order.total.toFixed(2)}`;
+      const total = `Rs. ${order.total.toFixed(2)}`;
       tableRows.push([ order._id.slice(-6), order.table, paidTime, total ]);
     });
 

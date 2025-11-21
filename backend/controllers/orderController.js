@@ -18,9 +18,6 @@ export const getOrders = async (req, res) => {
       query = { createdAt: { $gte: startDate, $lte: endDate } };
     }
     
-    // Find orders based on the query
-    // If query is empty, it finds all (which is what billing.js needs)
-    // If query has a date, it finds only today's (for orders.js)
     const orders = await Order.find(query);
     
     res.json(orders);
