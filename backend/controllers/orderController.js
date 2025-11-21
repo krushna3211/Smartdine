@@ -8,7 +8,7 @@ export const getOrders = async (req, res) => {
 
     let query = {}; // Start with an empty query (gets all orders)
 
-    // If the frontend asks for "today", we build a date filter
+    
     if (period === 'today') {
       const startDate = new Date();
       startDate.setHours(0, 0, 0, 0); // Start of today
@@ -17,16 +17,15 @@ export const getOrders = async (req, res) => {
       
       query = { createdAt: { $gte: startDate, $lte: endDate } };
     }
-    
-    const orders = await Order.find(query);
-    
-    res.json(orders);
-  } catch (err) {
- res.status(500).json({ message: err.message });
- }
-};
 
-// 🟢 Create a new order (FIXED)
+    const orders = await Order.find(query);
+    res.json(orders);
+    } catch (err) {
+    res.status(500).json({ message: err.message });
+    }
+    };
+
+// 🟢 Create a new order 
 export const createOrder = async (req, res) => {
   try {
     const { table, items, total, status } = req.body;
