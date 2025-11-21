@@ -169,7 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- Calculate Total ---
-  function calculateTotal() {
+  function calculateTotal() {updateOrderStatus
     let total = 0;
     currentOrderItems.forEach(item => {
       total += item.price * item.quantity;
@@ -340,16 +340,34 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   
   // --- Delete & Update Status ---
+  // --- Update Order Status ---
   window.updateOrderStatus = async function (id, newStatus) {
-    await fetch(`http://localhost:5000/api/orders/${id}/status`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ status: newStatus }),
-    });
-    if (newStatus === 'completed' || newStatus === 'delivered') {
-      loadAvailableTables(); 
+    try {
+      const res = await fetch(`http://localhost:5000/api/orders/${id}/status`, {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json", 
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (res.ok) {
+        showToast(`Order status updated to ${newStatus}`, "success");
+        
+        if (newStatus === 'completed' || newStatus === 'delivered') {
+          loadAvailableTables(); 
+        }
+        loadOrders(); // Refresh the list
+      } else {
+        showToast("Failed to update order status", "error");
+        loadOrders(); // Revert the dropdown if it failed
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Server error. Could not update status.", "error");
+      loadOrders(); // Revert the dropdown
     }
-    loadOrders(); 
   }
 
   // --- Delete Order ---

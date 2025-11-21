@@ -43,22 +43,23 @@ document.addEventListener("DOMContentLoaded", () => {
         const data = await res.json();
 
         if (res.ok) {
-          // --- SUCCESS ---
+         
           // Save credentials to local storage
           localStorage.setItem("token", data.token);
           localStorage.setItem("adminName", data.name);
           localStorage.setItem("role", data.role);
 
-          // --- THIS IS THE FIX ---
+          showToast("Login successful! Redirecting...", "success");
+        
           // Redirect based on role
-          if (data.role === 'admin') {
-            window.location.href = "dashboard.html";
-          } else {
-            window.location.href = "staff-dashboard.html";
-          }
+          setTimeout(() => {
+             if (data.role === 'admin') window.location.href = "dashboard.html";
+             else window.location.href = "staff-dashboard.html";
+          }, 1000); // Small delay to see the toast
+
         } else {
-          // --- FAIL ---
-          loginMessage.textContent = data.message || "Login failed!";
+          // Instead of loginMessage.textContent...
+          showToast(data.message || "Login failed!", "error");
         }
       } catch (err) {
         console.error("Login error:", err);

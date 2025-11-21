@@ -65,6 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   // --- Change status (Staff & Admin) ---
   // Attaching to 'window' makes it global
+  // --- Change status (Staff & Admin) ---
   window.changeStatus = async function (id, currentStatus) {
     const nextStatus =
       currentStatus === "available"
@@ -73,19 +74,28 @@ document.addEventListener("DOMContentLoaded", () => {
         ? "reserved"
         : "available";
 
-    // --- THIS IS THE CORRECT, STAFF-SAFE URL ---
-    await fetch(`http://localhost:5000/api/tables/${id}/status`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ status: nextStatus }),
-    });
+    try {
+      const res = await fetch(`http://localhost:5000/api/tables/${id}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: nextStatus }),
+      });
 
-    loadTables(); // Reload to show the new status
+      if (res.ok) {
+        showToast(`Table status changed to ${nextStatus}`, "success");
+        loadTables(); // Reload to show the new status
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to change status", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Server error. Please try again.", "error");
+    }
   }
-
   // --- Delete (Admin only) ---
  window.deleteTable = async function (id) {
     // Use SweetAlert
