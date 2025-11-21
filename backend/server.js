@@ -1,6 +1,8 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import path from 'path'; // <--- Added this
+import { fileURLToPath } from 'url'; // <--- Added this
 import connectDB from './config/db.js';
 
 // Import routes
@@ -13,7 +15,6 @@ import inventoryRoutes from './routes/inventoryRoutes.js';
 import billRoutes from './routes/billRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 
-
 dotenv.config();
 connectDB();
 
@@ -21,9 +22,11 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// --- 1. Setup Static Files ---
+// --- 1. Setup Static Files (Fix applied here) ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Pointing to 'public' folder. Ensure this folder exists in your backend root.
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Routes
@@ -36,8 +39,10 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/bills', billRoutes);
 app.use('/api/reports', reportRoutes);
 
-// --- 3. Catch-All Route (Serve index.html for any other request) ---
-app.get('*', (req, res) => {
+// --- 3. Catch-All Route ---
+// This serves the frontend index.html if no API route is hit
+// NEW (Correct)
+app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
