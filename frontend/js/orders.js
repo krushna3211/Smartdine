@@ -185,10 +185,22 @@ document.addEventListener("DOMContentLoaded", () => {
     addItemToOrderBtn.addEventListener("click", () => {
       const selectedItemId = menuItemSelect.value;
       const quantity = parseInt(itemQuantity.value, 10);
-      if (!selectedItemId) return alert("Please select a menu item.");
-      if (isNaN(quantity) || quantity < 1) return alert("Please enter a valid quantity.");
+
+      // --- FIX: Replace alerts with Toasts ---
+      if (!selectedItemId) {
+        showToast("Please select a menu item.", "error");
+        return;
+      }
+      if (isNaN(quantity) || quantity < 1) {
+        showToast("Please enter a valid quantity.", "error");
+        return;
+      }
+      // ...
       const itemDetails = menuItems.find(item => item._id === selectedItemId);
-      if (!itemDetails) return alert("Error finding item details.");
+      if (!itemDetails) {
+        showToast("Error finding item details.", "error");
+        return;
+      }
       const existingItem = currentOrderItems.find(item => item.name === itemDetails.name);
       if (existingItem) {
         existingItem.quantity += quantity;
@@ -270,8 +282,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const table = orderTable.value;
       const status = orderStatus.value;
       const total = calculateTotal();
-      if (currentOrderItems.length === 0) return alert("Cannot save an empty order.");
-      if (!table) return alert("Please select an available table.");
+      if (currentOrderItems.length === 0) {
+        showToast("Cannot save an empty order.", "error");
+        return;
+      }
+      if (!table) {
+        showToast("Please select an available table.", "error");
+        return;
+      }
       const method = orderEditMode ? "PUT" : "POST";
       const url = orderEditMode
         ? `http://localhost:5000/api/orders/${editOrderId}`
@@ -334,13 +352,26 @@ document.addEventListener("DOMContentLoaded", () => {
     loadOrders(); 
   }
 
+  // --- Delete Order ---
   window.deleteOrder = async function (id) {
-    if (!confirm("Delete this order?")) return;
-    await fetch(`http://localhost:5000/api/orders/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    loadOrders();
+    // --- FIX: Use SweetAlert ---
+    if (await confirmDelete("this order")) {
+      try {
+        const res = await fetch(`http://localhost:5000/api/orders/${id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (res.ok) {
+          showToast("Order deleted successfully", "success");
+          loadOrders();
+        } else {
+          showToast("Failed to delete order", "error");
+        }
+      } catch (err) {
+        showToast("Server error", "error");
+      }
+    }
   }
 
   // --- Order Modal controls ---

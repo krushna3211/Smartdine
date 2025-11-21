@@ -148,7 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
       
       } catch (err) {
         console.error("Failed to finalize payment:", err);
-        alert(`Error: ${err.message}. Please try again.`);
+        showToast(`Error: ${err.message}. Please try again.`, "error");
       }
     });
   }

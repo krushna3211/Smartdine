@@ -96,7 +96,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Download PDF Function (UPDATED) ---
   function downloadPDF() {
     if (!currentReportData) {
-      alert("Please load a report before downloading.");
+      // Use Error Toast instead of alert
+      showToast("Please load a report before downloading.", "error");
       return;
     }
     

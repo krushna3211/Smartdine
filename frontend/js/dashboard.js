@@ -87,7 +87,10 @@ document.addEventListener("DOMContentLoaded", () => {
       localStorage.removeItem('token');
       localStorage.removeItem('adminName');
       localStorage.removeItem('role');
-      window.location.href = 'login.html';
+      showToast("Logged out successfully. See you soon!", "success");
+      setTimeout(() => {
+        window.location.href = 'login.html';
+      }, 1000);
     });
   });
 
