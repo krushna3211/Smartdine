@@ -37,11 +37,8 @@ export const createOrder = async (req, res) => {
       status
     });
 
-    // --- THIS IS THE FIX ---
     // Convert the string "4" into the number 4 for the query
     const tableToUpdate = await Table.findOne({ number: Number(table) });
-    // --- END FIX ---
-    
     if (tableToUpdate) {
       tableToUpdate.status = 'occupied';
       await tableToUpdate.save();
