@@ -19,8 +19,23 @@
       </div>
 
       <form id="loginForm">
-        <input type="email" id="email" placeholder="Email" required />
-        <input type="password" id="password" placeholder="Password" required />
+        <input 
+          type="email" 
+          id="email" 
+          placeholder="Email" 
+          required 
+          title="Please enter a valid email address (e.g., user@domain.com)"
+        />
+        
+        <input 
+          type="password" 
+          id="password" 
+          placeholder="Password" 
+          required 
+          minlength="6" 
+          title="Password must be at least 6 characters"
+        />
+        
         <button type="submit" class="login-submit">Login</button>
       </form>
 
@@ -30,6 +45,8 @@
     </div>
   </div>
 
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="js/login.js"></script>
 </body>
 </html>
