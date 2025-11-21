@@ -281,8 +281,17 @@ document.addEventListener("DOMContentLoaded", () => {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ table, items: currentOrderItems, total, status }),
       });
+      // ... inside submit listener ...
       const data = await res.json();
-      alert(data.message || "Order saved!");
+      
+      if (res.ok) {
+          showToast(`Order #${data._id.slice(-6)} placed successfully!`, "success");
+          closeOrderModal();
+          loadOrders(); 
+          loadAvailableTables(); 
+      } else {
+          showToast(data.message || "Failed to place order", "error");
+      }
       closeOrderModal();
       loadOrders(); 
       loadAvailableTables(); 

@@ -121,10 +121,14 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         
         if (!res.ok) {
-          // If server sends an error, show it
           const errData = await res.json();
-          throw new Error(errData.message || 'Failed to mark order as paid');
-        }
+          // Use Error Toast
+          showToast(errData.message || 'Failed to mark order as paid', "error");
+          return;
+      }
+      
+      // Use Success Toast
+      showToast("Payment Successful! Printing Bill...", "success");
         
         // --- Payment was saved, NOW print the bill ---
         const printContents = billDetails.innerHTML;

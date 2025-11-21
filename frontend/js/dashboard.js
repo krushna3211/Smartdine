@@ -31,7 +31,45 @@ if (token) {
   }
 }
 // --- END AUTH GUARD ---
+// --- UI Notification Helpers ---
 
+// 1. Success/Error Toast (Top Right Corner)
+window.showToast = function(message, type = "success") {
+  let backgroundColor;
+  
+  if (type === "success") {
+    backgroundColor = "linear-gradient(to right, #e67e22, #f39c12)"; // Your Brand Orange
+  } else {
+    backgroundColor = "linear-gradient(to right, #e74c3c, #c0392b)"; // Red for Error
+  }
+
+  Toastify({
+    text: message,
+    duration: 3000, // 3 seconds
+    close: true,
+    gravity: "top", // `top` or `bottom`
+    position: "right", // `left`, `center` or `right`
+    style: {
+      background: backgroundColor,
+      borderRadius: "8px",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+    },
+  }).showToast();
+};
+
+// 2. Delete Confirmation Modal (Beautiful Center Alert)
+window.confirmDelete = async function(itemName) {
+  const result = await Swal.fire({
+    title: 'Are you sure?',
+    text: `You won't be able to revert deleting "${itemName}"!`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#e67e22', // Your Brand Orange
+    cancelButtonColor: '#333',
+    confirmButtonText: 'Yes, delete it!'
+  });
+  return result.isConfirmed;
+};
 
 document.addEventListener("DOMContentLoaded", () => {
   

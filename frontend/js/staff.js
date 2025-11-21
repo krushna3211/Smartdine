@@ -71,7 +71,12 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       const data = await res.json();
-      alert(data.message || "Success!");
+      if (res.ok) {
+        showToast(data.message || "Staff member saved successfully!", "success");
+       } else {
+    showToast(data.message || "Error saving staff", "error");
+    return; // Stop execution if error
+      }
 
       closeModal();
       loadStaff();
@@ -79,14 +84,26 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- Delete Staff ---
-  // Must be on 'window' to be called by onclick
+  // We make the function async to wait for the user's click
   window.deleteStaff = async function (id) {
-    if (!confirm("Are you sure?")) return;
-    await fetch(`http://localhost:5000/api/staff/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    loadStaff();
+    // Use our new beautiful confirmation
+    if (await confirmDelete("this staff member")) {
+        try {
+            const res = await fetch(`http://localhost:5000/api/staff/${id}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (res.ok) {
+                showToast("Staff deleted successfully", "success");
+                loadStaff();
+            } else {
+                showToast("Failed to delete staff", "error");
+            }
+        } catch (err) {
+            showToast("Server error", "error");
+        }
+    }
   }
 
   // --- Edit Staff (opens modal) ---
