@@ -29,20 +29,20 @@ export const register = async (req, res) => {
 // 🟡 Login (Updated to check for role)
 export const login = async (req, res) => {
   try {
-    // --- THIS IS THE FIX ---
-    const { email, password, role } = req.body; // 1. Get role from req.body
+    const { email, password, role } = req.body; // 1. Get email, pass, AND role
 
-    // 2. Find user by *both* email and role
-    const user = await Staff.findOne({ email, role }); 
+    // 2. Find user by Email AND Role
+    const user = await Staff.findOne({ email, role });
+    
     if (!user) {
-      // Give a more specific error
-      return res.status(404).json({ message: `User not found with role: ${role}` });
+      return res.status(404).json({ message: 'User not found or wrong role selected' });
     }
-    // --- END FIX ---
 
+    // 3. Check Password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
+    // 4. Generate Token
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,

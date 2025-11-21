@@ -1,4 +1,26 @@
 // js/login.js
+function showToast(message, type = "success") {
+  let backgroundColor;
+  if (type === "success") {
+    backgroundColor = "linear-gradient(to right, #e67e22, #f39c12)"; 
+  } else {
+    backgroundColor = "linear-gradient(to right, #e74c3c, #c0392b)"; 
+  }
+
+  Toastify({
+    text: message,
+    duration: 3000, 
+    close: true,
+    gravity: "top", 
+    position: "right", 
+    style: {
+      background: backgroundColor,
+      borderRadius: "8px",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+    },
+  }).showToast();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.getElementById("loginForm");
   const emailInput = document.getElementById("email");
