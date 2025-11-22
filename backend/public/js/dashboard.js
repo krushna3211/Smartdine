@@ -133,7 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 2. Load Menu Count
     async function loadMenuCount() {
       try {
-        const res = await fetch("http://localhost:5000/api/menu", {
+        const res = await fetch("/api/menu", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -144,7 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 3. Load Order Count
     async function loadOrderCount() {
       try {
-        const res = await fetch("http://localhost:5000/api/orders", {
+        const res = await fetch("/api/orders", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -155,7 +155,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 4. Load Inventory Count
     async function loadInventoryCount() {
       try {
-        const res = await fetch("http://localhost:5000/api/inventory", {
+        const res = await fetch("/api/inventory", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -166,7 +166,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 5. Load Available Tables Count (NEW)
     async function loadAvailableTables() {
       try {
-        const res = await fetch("http://localhost:5000/api/tables", {
+        const res = await fetch("/api/tables", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const tables = await res.json();
@@ -178,7 +178,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 6. Load Pending Bills Count (NEW)
     async function loadPendingBills() {
       try {
-        const res = await fetch("http://localhost:5000/api/orders", {
+        const res = await fetch("/api/orders", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const orders = await res.json();

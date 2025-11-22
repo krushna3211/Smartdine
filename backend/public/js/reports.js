@@ -23,7 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Fetch Report Data (UPDATED) ---
   // Can fetch by period OR by date
   async function fetchReport(queryType, value) {
-    let apiUrl = " /api/reports";
+    let apiUrl = "/api/reports";
     
     if (queryType === 'period') {
       apiUrl += `?period=${value}`;

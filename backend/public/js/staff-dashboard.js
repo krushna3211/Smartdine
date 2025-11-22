@@ -30,7 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- 2. Load Available Tables Count ---
   async function loadAvailableTables() {
     try {
-      const res = await fetch(" /api/tables", {
+      const res = await fetch("/api/tables", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const tables = await res.json();
@@ -49,7 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- 3. Load Pending Bills Count ---
   async function loadPendingBills() {
     try {
-      const res = await fetch(" /api/orders", {
+      const res = await fetch("/api/orders", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const orders = await res.json();

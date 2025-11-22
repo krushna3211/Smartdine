@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadMenu() {
     if (!menuTableBody) return; // Make sure element exists
 
-    const res = await fetch(" /api/menu", {
+    const res = await fetch("/api/menu", {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
@@ -101,7 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Use SweetAlert for confirmation
     if (await confirmDelete("this menu item")) {
       try {
-        const res = await fetch(` /api/menu/${id}`, {
+        const res = await fetch(`/api/menu/${id}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });

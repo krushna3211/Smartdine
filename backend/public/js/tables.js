@@ -75,7 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
         : "available";
 
     try {
-      const res = await fetch(` /api/tables/${id}/status`, {
+      const res = await fetch(`/api/tables/${id}/status`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -101,7 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Use SweetAlert
     if (await confirmDelete("this table")) {
       try {
-        const res = await fetch(` /api/tables/${id}`, {
+        const res = await fetch(`/api/tables/${id}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });

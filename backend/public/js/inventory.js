@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadInventory() {
     if (!inventoryGrid) return; // Make sure element exists
 
-    const res = await fetch(" /api/inventory", {
+    const res = await fetch("/api/inventory", {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();

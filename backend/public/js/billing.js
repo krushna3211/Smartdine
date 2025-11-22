@@ -40,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (currentView === 'pending') {
       // Load Orders
       try {
-        const res = await fetch(" /api/orders", {
+        const res = await fetch("/api/orders", {
            headers: { Authorization: `Bearer ${token}` }
         });
         const allOrders = await res.json();
@@ -50,7 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       // Load Bills (History) from NEW Collection
       try {
-        const res = await fetch(" /api/bills", {
+        const res = await fetch("/api/bills", {
            headers: { Authorization: `Bearer ${token}` }
         });
         const bills = await res.json();
