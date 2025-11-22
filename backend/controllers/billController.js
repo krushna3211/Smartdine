@@ -1,75 +1,50 @@
 import Bill from '../models/Bill.js';
 import Order from '../models/Order.js';
+import Table from '../models/Table.js';
 
-// 🟢 Generate Bill for an order
+// 🟢 Generate Bill (Move Order -> Bill)
 export const generateBill = async (req, res) => {
   try {
-    const { orderId, paymentMethod, tax = 5, serviceCharge = 2 } = req.body;
+    const { orderId, paymentMethod } = req.body;
 
-    const order = await Order.findById(orderId).populate('items.menuItem');
+    // 1. Find the Order
+    const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    const items = order.items.map(i => ({
-      name: i.menuItem.name,
-      quantity: i.quantity,
-      price: i.menuItem.price,
-      total: i.menuItem.price * i.quantity
-    }));
-
-    const subtotal = items.reduce((acc, i) => acc + i.total, 0);
-    const taxAmount = (subtotal * tax) / 100;
-    const serviceChargeAmount = (subtotal * serviceCharge) / 100;
-    const totalAmount = subtotal + taxAmount + serviceChargeAmount;
-
+    // 2. Create the Bill Record (Copying data)
     const bill = await Bill.create({
-      orderId,
-      tableNumber: order.tableNumber,
-      items,
-      subtotal,
-      tax: taxAmount,
-      serviceCharge: serviceChargeAmount,
-      totalAmount,
-      paymentMethod,
-      status: 'paid'
+      orderId: order._id,
+      table: order.table,
+      items: order.items,
+      total: order.total,
+      paymentMethod: paymentMethod,
+      paidAt: Date.now()
     });
 
-    // Optionally mark order as "completed"
-    order.status = 'completed';
+    // 3. Update Order Status to 'paid'
+    order.status = 'paid';
     await order.save();
 
-    res.status(201).json(bill);
+    // 4. Free up the Table
+    const tableToUpdate = await Table.findOne({ number: Number(order.table) });
+    if (tableToUpdate) {
+      tableToUpdate.status = 'available';
+      await tableToUpdate.save();
+    }
+
+    res.status(201).json({ message: 'Bill generated successfully', bill });
+
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// 📋 Get all bills
-export const getAllBills = async (req, res) => {
+// 🟢 Get Bill History
+export const getBillHistory = async (req, res) => {
   try {
-    const bills = await Bill.find().populate('orderId');
+    // Fetch bills, newest first
+    const bills = await Bill.find().sort({ paidAt: -1 });
     res.json(bills);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// 📄 Get single bill details
-export const getBillById = async (req, res) => {
-  try {
-    const bill = await Bill.findById(req.params.id).populate('orderId');
-    if (!bill) return res.status(404).json({ message: 'Bill not found' });
-    res.json(bill);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// 🗑️ Delete a bill (admin only)
-export const deleteBill = async (req, res) => {
-  try {
-    const deleted = await Bill.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ message: 'Bill not found' });
-    res.json({ message: 'Bill deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
