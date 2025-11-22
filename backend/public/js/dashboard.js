@@ -122,7 +122,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 1. Load Staff Count
     async function loadStaffCount() {
       try {
-        const res = await fetch("http://localhost:5000/api/staff", {
+        const res = await fetch("/api/staff", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();

@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadStaff() {
     if (!staffTableBody) return; // Guard clause
 
-    const res = await fetch("http://localhost:5000/api/staff", {
+    const res = await fetch(" /api/staff", {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
@@ -58,8 +58,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const method = editMode ? "PUT" : "POST";
       const url = editMode
-        ? `http://localhost:5000/api/staff/${editId}`
-        : "http://localhost:5000/api/auth/register";
+        ? ` /api/staff/${editId}`
+        : " /api/auth/register";
 
       const res = await fetch(url, {
         method,
@@ -89,7 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Use our new beautiful confirmation
     if (await confirmDelete("this staff member")) {
         try {
-            const res = await fetch(`http://localhost:5000/api/staff/${id}`, {
+            const res = await fetch(` /api/staff/${id}`, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
             });

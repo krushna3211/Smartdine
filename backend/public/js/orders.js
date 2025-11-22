@@ -52,7 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- [UPDATED] Load All Menu Items & Categories ---
   async function loadMenuItemsAndCategories() {
     try {
-      const res = await fetch("http://localhost:5000/api/menu", {
+      const res = await fetch(" /api/menu", {
         headers: { Authorization: `Bearer ${token}` },
       });
       menuItems = await res.json(); // Save to global state
@@ -104,7 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Load Available Tables ---
   async function loadAvailableTables() {
     try {
-      const res = await fetch("http://localhost:5000/api/tables", {
+      const res = await fetch(" /api/tables", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const tables = await res.json();
@@ -230,7 +230,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Load all orders (Time Placed) ---
   async function loadOrders() {
     if (!ordersTableBody) return; 
-    const res = await fetch("http://localhost:5000/api/orders?period=today", {
+    const res = await fetch(" /api/orders?period=today", {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
@@ -292,8 +292,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       const method = orderEditMode ? "PUT" : "POST";
       const url = orderEditMode
-        ? `http://localhost:5000/api/orders/${editOrderId}`
-        : "http://localhost:5000/api/orders";
+        ? ` /api/orders/${editOrderId}`
+        : " /api/orders";
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -343,7 +343,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Update Order Status ---
   window.updateOrderStatus = async function (id, newStatus) {
     try {
-      const res = await fetch(`http://localhost:5000/api/orders/${id}/status`, {
+      const res = await fetch(` /api/orders/${id}/status`, {
         method: "PUT",
         headers: { 
           "Content-Type": "application/json", 
@@ -375,7 +375,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- FIX: Use SweetAlert ---
     if (await confirmDelete("this order")) {
       try {
-        const res = await fetch(`http://localhost:5000/api/orders/${id}`, {
+        const res = await fetch(` /api/orders/${id}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -476,7 +476,7 @@ document.addEventListener("DOMContentLoaded", () => {
     printBillBtn.addEventListener("click", async () => {
       if (!currentBillData) return; 
       try {
-        const res = await fetch(`http://localhost:5000/api/orders/${currentBillData._id}/pay`, {
+        const res = await fetch(` /api/orders/${currentBillData._id}/pay`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ paymentMethod: currentPaymentMethod }),

@@ -40,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (currentView === 'pending') {
       // Load Orders
       try {
-        const res = await fetch("http://localhost:5000/api/orders", {
+        const res = await fetch(" /api/orders", {
            headers: { Authorization: `Bearer ${token}` }
         });
         const allOrders = await res.json();
@@ -50,7 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       // Load Bills (History) from NEW Collection
       try {
-        const res = await fetch("http://localhost:5000/api/bills", {
+        const res = await fetch(" /api/bills", {
            headers: { Authorization: `Bearer ${token}` }
         });
         const bills = await res.json();
@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // If pending order, save to BILLS collection first
     if (currentView === 'pending') {
       try {
-        const res = await fetch("http://localhost:5000/api/bills/generate", {
+        const res = await fetch("/api/bills/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ 

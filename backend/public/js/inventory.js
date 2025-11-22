@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadInventory() {
     if (!inventoryGrid) return; // Make sure element exists
 
-    const res = await fetch("http://localhost:5000/api/inventory", {
+    const res = await fetch(" /api/inventory", {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
@@ -64,7 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Use SweetAlert
     if (await confirmDelete("this inventory item")) {
       try {
-        const res = await fetch(`http://localhost:5000/api/inventory/${id}`, {
+        const res = await fetch(` /api/inventory/${id}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -104,8 +104,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const method = inventoryEditMode ? "PUT" : "POST";
       const url = inventoryEditMode
-        ? `http://localhost:5000/api/inventory/${editInventoryId}`
-        : "http://localhost:5000/api/inventory";
+        ? ` /api/inventory/${editInventoryId}`
+        : " /api/inventory";
 
       const res = await fetch(url, {
         method,
