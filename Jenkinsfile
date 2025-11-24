@@ -69,15 +69,16 @@ spec:
     }
   }
 
+  // parameters
   parameters {
     string(name: 'K8S_NAMESPACE', defaultValue: 'smartdine', description: 'Namespace to deploy into (will be sanitized)')
-    booleanParam(name: 'RESTART_AGENTS', defaultValue: false, description: 'If true, recreate Jenkins agent pods in jenkins namespace after applying daemon.json')
+    booleanParam(name: 'RESTART_AGENTS', defaultValue: false, description: 'If true, recreate Jenkins agent pods after updating docker daemon config')
   }
 
   environment {
-    # Credentials id used for docker login (username/password)
+    // credentials id used for docker login (username/password)
     DOCKER_CREDENTIALS = 'nexus-docker-creds'
-    # Registry — update if necessary (IP:PORT or DNS:PORT)
+    // use cluster IP:port (no scheme) — nodes expect IP:port and your daemon config should mark it insecure if HTTP
     DOCKER_REGISTRY = '10.43.21.172:8085'
     NEXUS_REPO_PATH = 'krushna-project'
     IMAGE_NAME = "${DOCKER_REGISTRY}/${NEXUS_REPO_PATH}/smartdine-pos"
@@ -117,41 +118,23 @@ spec:
     stage('Ensure dind daemon config (in Jenkins namespace)') {
       steps {
         container('kubectl') {
-          sh '''
-            set -euo pipefail
+          script {
+            // safely use the boolean parameter: RESTART_AGENTS will always be set by Jenkins
+            sh '''
+              set -euo pipefail
+              echo "Applying docker-daemon-config ConfigMap in namespace jenkins (will merge/replace daemon.json)"
+              cat k8s-deployment/docker-daemon-config.yaml | kubectl -n jenkins apply -f - || true
+              echo "ConfigMap applied."
 
-            echo "Applying docker-daemon-config ConfigMap in namespace jenkins (will merge/replace daemon.json)"
-
-            # Use DOCKER_REGISTRY env to populate daemon.json. This will write the full registry (including :port)
-            # into the insecure-registries array so dind will talk HTTP for that registry.
-            cat <<EOF | kubectl -n jenkins apply -f -
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: docker-daemon-config
-data:
-  daemon.json: |
-    {
-      "insecure-registries": ["${DOCKER_REGISTRY}"]
-    }
-EOF
-
-            echo "ConfigMap applied. If agent pods are already running they must be recreated to pick up the new daemon.json."
-
-            # safe expansion to avoid 'set -u' failure if param is not set
-            should_restart=${RESTART_AGENTS:-false}
-            echo "RESTART_AGENTS = ${should_restart}"
-
-            if [ "${should_restart}" = "true" ]; then
-              echo "Recreating Jenkins agent pods in namespace 'jenkins' so dind picks up the new daemon.json..."
-              kubectl -n jenkins get pods -l jenkins/my-jenkins-jenkins-agent=true -o name \
-                | xargs -r kubectl -n jenkins delete
-              echo "Agent pods deleted; Jenkins controller will recreate them. Wait until new agents are Ready before next stage."
-            else
-              echo "Not restarting agents automatically. Restart them manually if needed:"
-              echo "kubectl -n jenkins get pods -l jenkins/my-jenkins-jenkins-agent=true -o name | xargs -r kubectl -n jenkins delete"
-            fi
-          '''
+              # use the pipeline parameter to decide whether to restart agents
+              if [ "${RESTART_AGENTS}" = "true" ]; then
+                echo "RESTART_AGENTS=true -> deleting existing agent pods so new pods pick up daemon.json"
+                kubectl -n jenkins delete pods -l jenkins/my-jenkins-jenkins-agent=true --ignore-not-found
+              else
+                echo "RESTART_AGENTS=false -> skipping agent pod restart"
+              fi
+            '''
+          }
         }
       }
     }
@@ -193,7 +176,7 @@ EOF
                 docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
                 BUILT_IMAGES="${IMAGE_NAME}:${IMAGE_TAG}"
               else
-                echo "No server/client dirs and no root Dockerfile found — nothing to build"
+                echo "No server/ client dirs and no root Dockerfile found — nothing to build"
                 exit 1
               fi
 
@@ -227,10 +210,7 @@ EOF
             sh '''
               echo "Sonar host: ${SONAR_HOST_URL}"
               if command -v curl >/dev/null 2>&1; then
-                echo "Checking connectivity to SonarQube..."
                 curl -fsS "${SONAR_HOST_URL}/api/server/version" || echo "Warning: could not curl SonarQube host"
-              else
-                echo "curl not available; skipping connectivity check."
               fi
 
               sonar-scanner \
@@ -250,8 +230,7 @@ EOF
         container('dind') {
           withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
-              echo "Attempt docker login to ${DOCKER_REGISTRY}"
-              # If DOCKER_REGISTRY is an HTTP (insecure) registry, ensure dind daemon has been configured to accept it
+              # login to registry (cluster IP:port). node/daemon must be configured as insecure-registry if registry is HTTP.
               echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin ${DOCKER_REGISTRY}
             '''
           }
@@ -282,10 +261,8 @@ EOF
             sh '''
               set -euo pipefail
               raw_ns="${K8S_NAMESPACE:-}"
-              echo "Requested namespace (raw): $raw_ns"
               ns=$(echo "${raw_ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
               if [ -z "$ns" ]; then ns="smartdine"; fi
-              echo "Sanitized namespace: $ns"
 
               kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - || true
 
@@ -308,27 +285,28 @@ EOF
     stage('Preflight diagnostics (DNS / Registry reachability)') {
       steps {
         container('kubectl') {
-          sh '''
-            set -euo pipefail
-            ns="${K8S_NAMESPACE:-smartdine}"
-            ns=$(echo "${ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
-            echo "Running DNS/HTTP checks from inside kubectl container (cluster view):"
+          script {
+            sh '''
+              set -euo pipefail
+              ns="${K8S_NAMESPACE:-smartdine}"
+              ns=$(echo "${ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
+              echo "Running DNS/HTTP checks from inside kubectl container (cluster view):"
 
-            echo "Resolve registry DNS from within pod container:"
-            host_only="${DOCKER_REGISTRY%:*}"
-            if command -v getent >/dev/null 2>&1; then
-              getent hosts "${host_only}" || echo "getent failed"
-            else
-              nslookup "${host_only}" || true
-            fi
+              echo "Resolve registry DNS from within pod container:"
+              if command -v getent >/dev/null 2>&1; then
+                getent hosts ${DOCKER_REGISTRY%:*} || echo "getent failed"
+              else
+                nslookup ${DOCKER_REGISTRY%:*} || true
+              fi
 
-            echo "Try curl (http) to registry (may be internal):"
-            if command -v curl >/dev/null 2>&1; then
-              curl -v --max-time 5 "http://${DOCKER_REGISTRY}/v2/" || echo "curl http to registry failed or timed out"
-            else
-              echo "curl not available; skipping HTTP check"
-            fi
-          '''
+              echo "Try curl (http) to registry (may be internal):"
+              if command -v curl >/dev/null 2>&1; then
+                curl -v --max-time 5 "http://${DOCKER_REGISTRY}/v2/" || echo "curl http to registry failed or timed out"
+              else
+                echo "curl not available in kubectl image; skipping HTTP check"
+              fi
+            '''
+          }
         }
       }
     }
@@ -343,29 +321,22 @@ EOF
                 raw_ns="${K8S_NAMESPACE:-}"
                 ns=$(echo "${raw_ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
                 if [ -z "$ns" ]; then ns="smartdine"; fi
-                echo "Deploying into namespace: $ns"
 
                 if [ -f "${NAMESPACE_FILE}" ]; then
-                  echo "Applying ${NAMESPACE_FILE} (may create namespace with metadata)..."
                   kubectl apply -f "${NAMESPACE_FILE}" || true
                 fi
 
-                echo "Applying ${DEPLOYMENT_FILE} in namespace ${ns}"
-                kubectl apply -f "${DEPLOYMENT_FILE}" -n "${ns"
+                kubectl apply -f "${DEPLOYMENT_FILE}" -n "${ns}"
 
-                # update image (idempotent)
-                echo "Setting image for deployment/smartdine-deployment to ${IMAGE_NAME}:${IMAGE_TAG}"
                 kubectl set image deployment/smartdine-deployment smartdine=${IMAGE_NAME}:${IMAGE_TAG} -n "${ns}" || true
 
-                echo "Waiting for rollout..."
                 if ! kubectl rollout status deployment/smartdine-deployment -n "${ns}" --timeout=120s; then
-                  echo "Rollout failed or timed out — gathering debug info:"
+                  echo "Rollout failed — gathering debug info"
                   kubectl get pods -n "${ns}" -o wide || true
                   kubectl describe pods -n "${ns}" || true
                   kubectl get events -n "${ns}" --sort-by='.metadata.creationTimestamp' || true
                   exit 1
                 fi
-
                 echo "Deployment succeeded in namespace ${ns}"
               '''
             }
