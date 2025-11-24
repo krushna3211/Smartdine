@@ -33,7 +33,8 @@ spec:
       name: workspace-volume
   - name: dind
     image: docker:dind
-    args: ["--registry-mirror=https://mirror.gcr.io", "--storage-driver=overlay2"]
+    # NOTE: removed the --registry-mirror flag here to avoid duplicate-directive crashes
+    # daemon configuration is provided via /etc/docker/daemon.json (configMap)
     env:
     - name: DOCKER_TLS_CERTDIR
       value: ""
@@ -69,16 +70,13 @@ spec:
     }
   }
 
-  // parameters
   parameters {
     string(name: 'K8S_NAMESPACE', defaultValue: 'smartdine', description: 'Namespace to deploy into (will be sanitized)')
     booleanParam(name: 'RESTART_AGENTS', defaultValue: false, description: 'If true, recreate Jenkins agent pods after updating docker daemon config')
   }
 
   environment {
-    // credentials id used for docker login (username/password)
     DOCKER_CREDENTIALS = 'nexus-docker-creds'
-    // use cluster IP:port (no scheme) — nodes expect IP:port and your daemon config should mark it insecure if HTTP
     DOCKER_REGISTRY = '10.43.21.172:8085'
     NEXUS_REPO_PATH = 'krushna-project'
     IMAGE_NAME = "${DOCKER_REGISTRY}/${NEXUS_REPO_PATH}/smartdine-pos"
@@ -119,15 +117,18 @@ spec:
       steps {
         container('kubectl') {
           script {
-            // safely use the boolean parameter: RESTART_AGENTS will always be set by Jenkins
             sh '''
               set -euo pipefail
-              echo "Applying docker-daemon-config ConfigMap in namespace jenkins (will merge/replace daemon.json)"
-              cat k8s-deployment/docker-daemon-config.yaml | kubectl -n jenkins apply -f - || true
-              echo "ConfigMap applied."
+              echo "Applying docker-daemon-config ConfigMap in namespace jenkins (will merge/replace daemon.json) if file exists in repo"
+              if [ -f "${WORKSPACE}/${DEPLOYMENT_DIR}/docker-daemon-config.yaml" ]; then
+                cat "${WORKSPACE}/${DEPLOYMENT_DIR}/docker-daemon-config.yaml" | kubectl -n jenkins apply -f - || true
+                echo "ConfigMap applied."
+              else
+                echo "No ${DEPLOYMENT_DIR}/docker-daemon-config.yaml found in repo -> skipping apply"
+              fi
 
-              # use the pipeline parameter to decide whether to restart agents
-              if [ "${RESTART_AGENTS}" = "true" ]; then
+              # safe RESTART_AGENTS check (avoid unbound variable issues)
+              if [ "${RESTART_AGENTS:-false}" = "true" ]; then
                 echo "RESTART_AGENTS=true -> deleting existing agent pods so new pods pick up daemon.json"
                 kubectl -n jenkins delete pods -l jenkins/my-jenkins-jenkins-agent=true --ignore-not-found
               else
@@ -230,7 +231,6 @@ spec:
         container('dind') {
           withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
-              # login to registry (cluster IP:port). node/daemon must be configured as insecure-registry if registry is HTTP.
               echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin ${DOCKER_REGISTRY}
             '''
           }
