@@ -71,13 +71,13 @@ spec:
 
   parameters {
     string(name: 'K8S_NAMESPACE', defaultValue: 'smartdine', description: 'Namespace to deploy into (will be sanitized)')
+    booleanParam(name: 'RESTART_AGENTS', defaultValue: false, description: 'If true the pipeline will attempt to recreate Jenkins agent pods after updating daemon config (use with care)')
   }
 
   environment {
     DOCKER_CREDENTIALS = 'nexus-docker-creds'
-    // --- CHANGE MADE HERE: Switched from DNS name to Cluster IP ---
-    DOCKER_REGISTRY = '10.43.21.172:8085' 
-    // -------------------------------------------------------------
+    // Use cluster IP for the registry (changed from DNS name)
+    DOCKER_REGISTRY = '10.43.21.172:8085'
     NEXUS_REPO_PATH = 'krushna-project'
     IMAGE_NAME = "${DOCKER_REGISTRY}/${NEXUS_REPO_PATH}/smartdine-pos"
     SONAR_CREDENTIALS = 'sonar-token'
@@ -95,9 +95,7 @@ spec:
   }
 
   stages {
-    stage('Checkout') {
-      steps { checkout scm }
-    }
+    stage('Checkout') { steps { checkout scm } }
 
     stage('Detect build layout') {
       steps {
@@ -108,6 +106,43 @@ spec:
             if [ -d "./server" ]; then echo "Found ./server"; else echo "No ./server dir"; fi
             if [ -d "./client" ]; then echo "Found ./client"; else echo "No ./client dir"; fi
             if [ -f "Dockerfile" ]; then echo "Found root Dockerfile"; fi
+          '''
+        }
+      }
+    }
+
+    stage('Ensure dind daemon config (in Jenkins namespace)') {
+      steps {
+        container('kubectl') {
+          // This stage will create/patch the ConfigMap `docker-daemon-config` in the `jenkins` ns
+          // to include the insecure registry entries used in this pipeline.
+          sh '''
+            set -euo pipefail
+            echo "Applying docker-daemon-config ConfigMap in namespace jenkins (will merge/replace daemon.json)"
+            cat <<'EOF' | kubectl -n jenkins apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docker-daemon-config
+data:
+  daemon.json: |
+    {
+      "registry-mirrors": ["https://mirror.gcr.io"],
+      "insecure-registries": [
+        "10.43.21.172:8085",
+        "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
+      ]
+    }
+EOF
+            echo "ConfigMap applied. If agent pods are already running they must be recreated to pick up the new daemon.json."
+            if [ "${RESTART_AGENTS}" = "true" ]; then
+              echo "Deleting current Jenkins agent pods so new agents will start with updated daemon.json (label selector will be used):"
+              kubectl -n jenkins get pods -l jenkins/my-jenkins-jenkins-agent=true -o name || true
+              kubectl -n jenkins delete pod -l jenkins/my-jenkins-jenkins-agent=true || true
+              echo "Agent pods deleted; Jenkins should provision new agents automatically."
+            else
+              echo "RESTART_AGENTS=false, not deleting agent pods. To pick up the new daemon.json restart agents manually or re-run this pipeline with RESTART_AGENTS=true."
+            fi
           '''
         }
       }
@@ -165,11 +200,10 @@ spec:
       steps {
         container('dind') {
           sh '''
-            # run tests if image exists (run the primary image)
             PRIMARY_IMAGE=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep "${IMAGE_NAME}" | head -n1 || true)
             if [ -n "$PRIMARY_IMAGE" ]; then
-              echo "Running tests inside ${PRIMARY_IMAGE}"
-              docker run --rm ${PRIMARY_IMAGE} /bin/sh -c "npm ci && npm test" || echo "Tests finished (non-zero exit ignored here)"
+              echo "Running tests inside $PRIMARY_IMAGE"
+              docker run --rm $PRIMARY_IMAGE /bin/sh -c "npm ci && npm test" || echo "Tests finished (non-zero exit ignored here)"
             else
               echo "No image matching ${IMAGE_NAME} found to run tests; skipping tests."
             fi
@@ -206,7 +240,15 @@ spec:
         container('dind') {
           withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
-              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin ${DOCKER_REGISTRY}
+              echo "Attempt docker login to ${DOCKER_REGISTRY}"
+              # docker client attempts HTTPS by default for bare IP; if daemon is configured with insecure-registries
+              # this will succeed. If not, the login will fail with "server gave HTTP response to HTTPS client".
+              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin ${DOCKER_REGISTRY} || true
+
+              # provide a helpful diagnostic if the login failed due to HTTP vs HTTPS
+              if ! docker info > /dev/null 2>&1; then
+                echo "Warning: docker info failed; check docker daemon logs"
+              fi
             '''
           }
         }
@@ -218,11 +260,10 @@ spec:
         container('dind') {
           sh '''
             set -euo pipefail
-            # push any images we built that match the IMAGE_NAME prefix
             for img in $(docker images --format '{{.Repository}}:{{.Tag}}' | grep "${IMAGE_NAME}" || true); do
               if [ -n "$img" ]; then
                 echo "Pushing $img"
-                docker push "$img" || echo "Push failed for $img"
+                docker push "$img" || echo "Push failed for $img — check registry / daemon insecure-registries settings"
               fi
             done
           '''
@@ -243,18 +284,14 @@ spec:
                 if [ -z "$ns" ]; then ns="smartdine"; fi
                 echo "Sanitized namespace: $ns"
 
-                # create namespace if missing
                 kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - || true
 
-                # create imagePullSecret (idempotent)
-                # Note: This now uses the IP address from DOCKER_REGISTRY so K8s can match it to the image pull
                 kubectl create secret docker-registry nexus-pull-secret \
                   --docker-server=${DOCKER_REGISTRY} \
                   --docker-username="${DOCKER_USER}" \
                   --docker-password="${DOCKER_PASS}" \
                   -n "${ns}" --dry-run=client -o yaml | kubectl apply -f -
 
-                # patch default SA so pods pick up the secret automatically
                 kubectl patch serviceaccount default -n "${ns}" \
                   -p '{"imagePullSecrets":[{"name":"nexus-pull-secret"}]}' || true
 
@@ -276,11 +313,12 @@ spec:
               ns=$(echo "${ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
               echo "Running DNS/HTTP checks from inside kubectl container (cluster view):"
 
-              echo "Resolve registry DNS from within pod container:"
+              echo "Resolve registry host from within pod container:"
+              host=${DOCKER_REGISTRY%:*}
               if command -v getent >/dev/null 2>&1; then
-                getent hosts ${DOCKER_REGISTRY%:*} || echo "getent failed"
+                getent hosts "$host" || echo "getent failed for $host"
               else
-                nslookup ${DOCKER_REGISTRY%:*} || true
+                nslookup "$host" || true
               fi
 
               echo "Try curl (http) to registry (may be internal):"
@@ -315,7 +353,6 @@ spec:
                 echo "Applying ${DEPLOYMENT_FILE} in namespace ${ns}"
                 kubectl apply -f "${DEPLOYMENT_FILE}" -n "${ns}"
 
-                # Update the image to the one we built using the IP address
                 echo "Setting image for deployment/smartdine-deployment to ${IMAGE_NAME}:${IMAGE_TAG}"
                 kubectl set image deployment/smartdine-deployment smartdine=${IMAGE_NAME}:${IMAGE_TAG} -n "${ns}" || true
 
