@@ -50,13 +50,18 @@ spec:
         }
     }
     
-    stages {
-        stage('Build Docker Image') {
+    stage('Build Docker Image') {
             steps {
                 container('dind') {
                     sh '''
-                        sleep 5
-                        # Build SmartDine image
+                        # Wait for Docker daemon to be ready
+                        echo "Waiting for Docker daemon..."
+                        while ! docker info > /dev/null 2>&1; do
+                            sleep 1
+                        done
+                        echo "Docker daemon is ready!"
+
+                        # Now build the image
                         docker build -t smartdine-pos:latest .
                         docker image ls
                     '''
