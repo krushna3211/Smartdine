@@ -147,21 +147,56 @@ spec:
       }
     }
 
-    stage('Deploy Application') {
-      steps {
+        stage('Deploy Application') {
+    steps {
         container('kubectl') {
-          script {
+        script {
             dir("${DEPLOYMENT_DIR}") {
-              sh """
-                kubectl apply -f ${DEPLOYMENT_FILE} -n ${K8S_NAMESPACE} --record
+            // debug listing to help trace issues
+            sh 'echo "Repo k8s-deployment contents:"; ls -la || true'
+
+            // Ensure namespace exists (create if missing)
+            sh '''
+                echo "Checking namespace: ${K8S_NAMESPACE}"
+                if ! kubectl get namespace ${K8S_NAMESPACE} >/dev/null 2>&1; then
+                echo "Namespace ${K8S_NAMESPACE} not found — creating it."
+                kubectl create namespace ${K8S_NAMESPACE}
+                else
+                echo "Namespace ${K8S_NAMESPACE} already exists."
+                fi
+            '''
+
+            // Apply the manifest (manifest file should be in k8s-deployment/${DEPLOYMENT_FILE})
+            sh """
+                echo "Applying manifest ${DEPLOYMENT_FILE} to namespace ${K8S_NAMESPACE}..."
+                kubectl apply -f ${DEPLOYMENT_FILE} -n ${K8S_NAMESPACE}
+            """
+
+            // Ensure deployment uses current image and wait for rollout
+            sh """
+                echo "Setting image to ${IMAGE_NAME}:${IMAGE_TAG} (idempotent)..."
                 kubectl set image deployment/smartdine-deployment smartdine=${IMAGE_NAME}:${IMAGE_TAG} -n ${K8S_NAMESPACE} || true
-                kubectl rollout status deployment/smartdine-deployment -n ${K8S_NAMESPACE}
-              """
-            }
-          }
-        }
-      }
-    }
+
+                echo "Waiting for rollout..."
+                kubectl rollout status deployment/smartdine-deployment -n ${K8S_NAMESPACE} --timeout=120s
+            """
+
+            // If rollout not ready, dump debugging info
+            sh '''
+                if ! kubectl get deploy smartdine-deployment -n ${K8S_NAMESPACE} -o jsonpath="{.status.conditions[?(@.type=='Available')].status}" | grep True; then
+                echo "Rollout may have failed — printing pods and events:"
+                kubectl get pods -n ${K8S_NAMESPACE} -o wide || true
+                kubectl describe pods -n ${K8S_NAMESPACE} || true
+                kubectl get events -n ${K8S_NAMESPACE} --sort-by='.metadata.creationTimestamp' || true
+                exit 1
+                fi
+            '''
+            } // dir
+        } // script
+        } // container
+    } // steps
+    } // stage
+
   } // end stages
 
   post {
