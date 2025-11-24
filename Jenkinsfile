@@ -74,8 +74,10 @@ spec:
   }
 
   environment {
-    DOCKER_CREDENTIALS = 'nexus-docker-creds'      // Jenkins creds id (username/password)
-    DOCKER_REGISTRY = 'nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085'
+    DOCKER_CREDENTIALS = 'nexus-docker-creds'
+    // --- CHANGE MADE HERE: Switched from DNS name to Cluster IP ---
+    DOCKER_REGISTRY = '10.43.21.172:8085' 
+    // -------------------------------------------------------------
     NEXUS_REPO_PATH = 'krushna-project'
     IMAGE_NAME = "${DOCKER_REGISTRY}/${NEXUS_REPO_PATH}/smartdine-pos"
     SONAR_CREDENTIALS = 'sonar-token'
@@ -128,12 +130,6 @@ spec:
                 echo "Docker daemon did not become ready"
                 exit 1
               fi
-
-              # Build strategy:
-              # - if ./server and ./client exist -> build both and tag combined repo images
-              # - else if server exists only -> build server
-              # - else if client exists only -> build client
-              # - else build root image
 
               BUILT_IMAGES=""
               if [ -d "./server" ] && [ -d "./client" ]; then
@@ -251,6 +247,7 @@ spec:
                 kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - || true
 
                 # create imagePullSecret (idempotent)
+                # Note: This now uses the IP address from DOCKER_REGISTRY so K8s can match it to the image pull
                 kubectl create secret docker-registry nexus-pull-secret \
                   --docker-server=${DOCKER_REGISTRY} \
                   --docker-username="${DOCKER_USER}" \
@@ -318,6 +315,7 @@ spec:
                 echo "Applying ${DEPLOYMENT_FILE} in namespace ${ns}"
                 kubectl apply -f "${DEPLOYMENT_FILE}" -n "${ns}"
 
+                # Update the image to the one we built using the IP address
                 echo "Setting image for deployment/smartdine-deployment to ${IMAGE_NAME}:${IMAGE_TAG}"
                 kubectl set image deployment/smartdine-deployment smartdine=${IMAGE_NAME}:${IMAGE_TAG} -n "${ns}" || true
 
