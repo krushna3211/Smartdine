@@ -138,13 +138,9 @@ spec:
     stage('SonarQube Analysis') {
       steps {
         container('sonar-scanner') {
-          // withCredentials places SONAR_TOKEN into the shell environment of sh steps
           withCredentials([string(credentialsId: "${SONAR_CREDENTIALS}", variable: 'SONAR_TOKEN')]) {
-            // NOTE: use double quotes for ${SONAR_HOST_URL} so the shell expands it,
-            // and use $SONAR_TOKEN (shell var) to avoid Groovy-string secret interpolation.
             sh '''
               echo "Sonar host: ${SONAR_HOST_URL}"
-              # quick connectivity check: try the base /api/version endpoint for sanity (non-fatal)
               if command -v curl >/dev/null 2>&1; then
                 echo "Checking connectivity to SonarQube..."
                 curl -fsS "${SONAR_HOST_URL}/api/server/version" || echo "Warning: could not curl SonarQube host"
@@ -152,7 +148,6 @@ spec:
                 echo "curl not available inside sonar-scanner image; skipping connectivity check."
               fi
 
-              # Run sonar-scanner using shell-expanded variables
               sonar-scanner \
                 -Dsonar.projectKey=Krushna-project \
                 -Dsonar.host.url="${SONAR_HOST_URL}" \
@@ -196,54 +191,54 @@ spec:
         container('kubectl') {
           script {
             dir("${DEPLOYMENT_DIR}") {
-              sh 'echo "Repo k8s-deployment contents:"; ls -la || true'
-
+              // All namespace / apply / set-image / rollout logic done inside one shell block
               sh '''
-                echo "Requested namespace (raw): ${K8S_NAMESPACE}"
-                ns=$(echo "${K8S_NAMESPACE}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
+                set -euo pipefail
+                echo "Repo ${DEPLOYMENT_DIR} contents:"
+                ls -la || true
+
+                # sanitize requested namespace into a safe RFC1123 lowercase label
+                raw_ns="${K8S_NAMESPACE:-}"
+                echo "Requested namespace (raw): ${raw_ns}"
+                ns=$(echo "${raw_ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
                 if [ -z "$ns" ]; then
-                  ns=smartdine
+                  ns="smartdine"
                 fi
                 echo "Sanitized namespace: $ns"
-                export SANITIZED_NAMESPACE="$ns"
-              '''
 
-              sh '''
+                # if a namespace.yaml is present, apply it (it may already contain the right name)
                 if [ -f "${NAMESPACE_FILE}" ]; then
-                  echo "Applying ${NAMESPACE_FILE} (if present)..."
-                  kubectl apply -f ${NAMESPACE_FILE} || true
+                  echo "Applying ${NAMESPACE_FILE} (may create namespace with desired metadata)..."
+                  kubectl apply -f "${NAMESPACE_FILE}" || true
                 fi
-              '''
 
-              sh '''
-                echo "Ensure namespace exists: $SANITIZED_NAMESPACE"
-                if ! kubectl get namespace "$SANITIZED_NAMESPACE" >/dev/null 2>&1; then
-                  echo "Namespace $SANITIZED_NAMESPACE not found — creating it."
-                  kubectl create namespace "$SANITIZED_NAMESPACE"
+                # ensure the namespace exists (create if missing)
+                if kubectl get namespace "$ns" >/dev/null 2>&1; then
+                  echo "Namespace $ns already exists."
                 else
-                  echo "Namespace $SANITIZED_NAMESPACE already exists."
+                  echo "Namespace $ns not found — creating it."
+                  kubectl create namespace "$ns"
                 fi
-              '''
 
-              sh '''
-                echo "Applying manifest ${DEPLOYMENT_FILE} to namespace $SANITIZED_NAMESPACE"
-                kubectl apply -f ${DEPLOYMENT_FILE} -n "$SANITIZED_NAMESPACE"
+                # apply the deployment manifest
+                echo "Applying manifest ${DEPLOYMENT_FILE} in namespace $ns"
+                kubectl apply -f "${DEPLOYMENT_FILE}" -n "$ns"
 
-                echo "Setting deployment image (idempotent)..."
-                kubectl set image deployment/smartdine-deployment smartdine=${IMAGE_NAME}:${IMAGE_TAG} -n "$SANITIZED_NAMESPACE" || true
+                # set the image (idempotent)
+                echo "Setting image for deployment/smartdine-deployment to ${IMAGE_NAME}:${IMAGE_TAG}"
+                kubectl set image deployment/smartdine-deployment smartdine=${IMAGE_NAME}:${IMAGE_TAG} -n "$ns" || true
 
+                # wait for rollout with timeout
                 echo "Waiting for rollout..."
-                kubectl rollout status deployment/smartdine-deployment -n "$SANITIZED_NAMESPACE" --timeout=120s || true
-              '''
-
-              sh '''
-                if ! kubectl get deploy smartdine-deployment -n "$SANITIZED_NAMESPACE" -o jsonpath="{.status.conditions[?(@.type=='Available')].status}" | grep True; then
-                  echo "Rollout not available — dumping debugging info:"
-                  kubectl get pods -n "$SANITIZED_NAMESPACE" -o wide || true
-                  kubectl describe pods -n "$SANITIZED_NAMESPACE" || true
-                  kubectl get events -n "$SANITIZED_NAMESPACE" --sort-by='.metadata.creationTimestamp' || true
+                if ! kubectl rollout status deployment/smartdine-deployment -n "$ns" --timeout=120s; then
+                  echo "Rollout failed or timed out — gathering debug info:"
+                  kubectl get pods -n "$ns" -o wide || true
+                  kubectl describe pods -n "$ns" || true
+                  kubectl get events -n "$ns" --sort-by='.metadata.creationTimestamp' || true
                   exit 1
                 fi
+
+                echo "Deployment succeeded in namespace $ns"
               '''
             }
           }
