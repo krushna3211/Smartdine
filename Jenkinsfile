@@ -70,10 +70,11 @@ spec:
 
   parameters {
     string(name: 'K8S_NAMESPACE', defaultValue: 'smartdine', description: 'Namespace to deploy into (will be sanitized)')
-    booleanParam(name: 'ALLOW_INSECURE_REGISTRY', defaultValue: false, description: 'If checked, continue when registry only responds on HTTP (you must ensure cluster nodes can pull from HTTP/insecure registry)')
+    booleanParam(name: 'ALLOW_INSECURE_REGISTRY', defaultValue: false, description: 'If checked, continue when registry only responds on HTTP (ensure cluster nodes can pull from insecure registry)')
   }
 
   environment {
+    // pipeline-level environment
     DOCKER_CREDENTIALS = 'nexus-docker-creds'
     DOCKER_REGISTRY = '10.43.21.172:8085'
     NEXUS_REPO_PATH = 'krushna-project'
@@ -85,6 +86,9 @@ spec:
     DEPLOYMENT_FILE = 'smartdine-deployment.yaml'
     NAMESPACE_FILE = 'namespace.yaml'
     IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"
+
+    // <<< IMPORTANT FIX: expose the boolean parameter into the shell environment so set -u won't fail >>>
+    ALLOW_INSECURE_REGISTRY = "${params.ALLOW_INSECURE_REGISTRY}"
     RESTART_AGENTS = 'false'
   }
 
@@ -122,15 +126,18 @@ spec:
               if command -v curl >/dev/null 2>&1; then
                 if curl -sS --connect-timeout 5 "https://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
                   echo "Registry responds to HTTPS."
-                  echo "Continuing."
                 else
                   echo "HTTPS check failed or non-HTTPS response detected. Testing HTTP..."
                   if curl -sS --connect-timeout 5 "http://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
                     echo "Registry only responds over HTTP."
+                    # SAFE: ALLOW_INSECURE_REGISTRY is exported into the environment above, so it's always defined.
                     if [ "${ALLOW_INSECURE_REGISTRY}" = "true" ]; then
                       echo "ALLOW_INSECURE_REGISTRY=true -> proceeding despite HTTP registry."
                     else
-                      echo "Registry uses HTTP. To proceed set ALLOW_INSECURE_REGISTRY=true or configure your registry with TLS / mark registry insecure on nodes."
+                      echo "Registry uses HTTP. To proceed either:"
+                      echo "  * set ALLOW_INSECURE_REGISTRY=true when starting the job (beware insecure transport), OR"
+                      echo "  * configure your cluster nodes to treat ${DOCKER_REGISTRY} as insecure registry, OR"
+                      echo "  * enable TLS on the registry."
                       exit 2
                     fi
                   else
