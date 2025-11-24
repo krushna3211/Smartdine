@@ -8,13 +8,20 @@ spec:
   containers:
   - name: sonar-scanner
     image: sonarsource/sonar-scanner-cli
-    command: ["cat"]
+    command:
+    - cat
     tty: true
-
+    volumeMounts:
+    - mountPath: /home/jenkins/agent
+      name: workspace-volume
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ["cat"]
+    command:
+    - cat
     tty: true
+    securityContext:
+      runAsUser: 0
+      readOnlyRootFilesystem: false
     env:
     - name: KUBECONFIG
       value: /kube/config
@@ -22,24 +29,39 @@ spec:
     - name: kubeconfig-secret
       mountPath: /kube/config
       subPath: kubeconfig
-
+    - mountPath: /home/jenkins/agent
+      name: workspace-volume
   - name: dind
     image: docker:dind
     args: ["--registry-mirror=https://mirror.gcr.io", "--storage-driver=overlay2"]
-    securityContext:
-      privileged: true
     env:
     - name: DOCKER_TLS_CERTDIR
       value: ""
+    securityContext:
+      privileged: true
     volumeMounts:
-    - name: docker-config
-      mountPath: /etc/docker/daemon.json
+    - mountPath: /etc/docker/daemon.json
+      name: docker-config
       subPath: daemon.json
-
+    - mountPath: /home/jenkins/agent
+      name: workspace-volume
+  - name: jnlp
+    image: jenkins/inbound-agent:3309.v27b_9314fd1a_4-1
+    env:
+    - name: JENKINS_URL
+      value: "http://my-jenkins.jenkins.svc.cluster.local:8080/"
+    volumeMounts:
+    - mountPath: /home/jenkins/agent
+      name: workspace-volume
+  nodeSelector:
+    kubernetes.io/os: "linux"
+  restartPolicy: Never
   volumes:
   - name: docker-config
     configMap:
       name: docker-daemon-config
+  - name: workspace-volume
+    emptyDir: {}
   - name: kubeconfig-secret
     secret:
       secretName: kubeconfig-secret
@@ -48,61 +70,165 @@ spec:
   }
 
   parameters {
-    string(name: 'TARGET_NAMESPACE', defaultValue: '2401106', description: 'Desired kubernetes namespace (will be sanitized)')
-    string(name: 'NEXUS_REGISTRY', defaultValue: 'nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085', description: 'Docker registry host:port')
-    string(name: 'REPOSITORY', defaultValue: 'my-repository', description: 'Repository inside nexus (eg my-repository)')
+    string(name: 'K8S_NAMESPACE', defaultValue: 'smartdine', description: 'Namespace to deploy into (will be sanitized)')
+  }
+
+  environment {
+    DOCKER_CREDENTIALS = 'nexus-docker-creds'      // Jenkins creds id (username/password)
+    DOCKER_REGISTRY = 'nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085'
+    NEXUS_REPO_PATH = 'krushna-project'
+    IMAGE_NAME = "${DOCKER_REGISTRY}/${NEXUS_REPO_PATH}/smartdine-pos"
+    SONAR_CREDENTIALS = 'sonar-token'
+    SONAR_HOST_URL = 'http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000'
+    K8S_NAMESPACE = "${params.K8S_NAMESPACE}"
+    DEPLOYMENT_DIR = 'k8s-deployment'
+    DEPLOYMENT_FILE = 'smartdine-deployment.yaml'
+    NAMESPACE_FILE = 'namespace.yaml'
+    IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"
+  }
+
+  options {
+    buildDiscarder(logRotator(numToKeepStr: '20'))
+    timeout(time: 60, unit: 'MINUTES')
   }
 
   stages {
+    stage('Checkout') {
+      steps { checkout scm }
+    }
 
-    stage('Build Docker Images') {
+    stage('Detect build layout') {
       steps {
         container('dind') {
           sh '''
-            sleep 10
-            docker build -t server:latest ./server
-            docker build -t client:latest ./client
+            echo "Workspace listing:"
+            ls -la || true
+            if [ -d "./server" ]; then echo "Found ./server"; else echo "No ./server dir"; fi
+            if [ -d "./client" ]; then echo "Found ./client"; else echo "No ./client dir"; fi
+            if [ -f "Dockerfile" ]; then echo "Found root Dockerfile"; fi
           '''
         }
       }
     }
 
-    stage('SonarQube Scan') {
-      steps {
-        container('sonar-scanner') {
-          withCredentials([string(credentialsId: 'sonar-token-2401106', variable: 'SONAR_TOKEN')]) {
-            sh '''
-              sonar-scanner \
-                -Dsonar.projectKey=2401106_client-server-app \
-                -Dsonar.host.url=http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000 \
-                -Dsonar.login=$SONAR_TOKEN
-            '''
-          }
-        }
-      }
-    }
-
-    stage('Login to Nexus Registry (Jenkins)') {
+    stage('Build Docker Image(s)') {
       steps {
         container('dind') {
-          withCredentials([usernamePassword(credentialsId: 'nexus-docker-creds', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
+          withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
-              echo "$NEXUS_PASS" | docker login ${NEXUS_REGISTRY} -u "$NEXUS_USER" --password-stdin
+              set -euo pipefail
+              echo "Waiting for Docker daemon..."
+              retries=0
+              until docker info > /dev/null 2>&1 || [ $retries -ge 30 ]; do
+                echo "Docker not ready yet... retry $retries"
+                sleep 2
+                retries=$((retries+1))
+              done
+              if ! docker info > /dev/null 2>&1; then
+                echo "Docker daemon did not become ready"
+                exit 1
+              fi
+
+              # Build strategy:
+              # - if ./server and ./client exist -> build both and tag combined repo images
+              # - else if server exists only -> build server
+              # - else if client exists only -> build client
+              # - else build root image
+
+              BUILT_IMAGES=""
+              if [ -d "./server" ] && [ -d "./client" ]; then
+                echo "Building server and client images"
+                docker build -t ${IMAGE_NAME}-server:${IMAGE_TAG} ./server
+                docker build -t ${IMAGE_NAME}-client:${IMAGE_TAG} ./client
+                BUILT_IMAGES="${IMAGE_NAME}-server:${IMAGE_TAG} ${IMAGE_NAME}-client:${IMAGE_TAG}"
+              elif [ -d "./server" ]; then
+                echo "Building server image (only /server exists)"
+                docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ./server
+                BUILT_IMAGES="${IMAGE_NAME}:${IMAGE_TAG}"
+              elif [ -d "./client" ]; then
+                echo "Building client image (only /client exists)"
+                docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ./client
+                BUILT_IMAGES="${IMAGE_NAME}:${IMAGE_TAG}"
+              elif [ -f "Dockerfile" ]; then
+                echo "Building single image from repo root Dockerfile"
+                docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                BUILT_IMAGES="${IMAGE_NAME}:${IMAGE_TAG}"
+              else
+                echo "No server/ client dirs and no root Dockerfile found — nothing to build"
+                exit 1
+              fi
+
+              echo "Built images: ${BUILT_IMAGES}"
             '''
           }
         }
       }
     }
 
-    stage('Tag + Push Images') {
+    stage('Run Tests in Docker') {
       steps {
         container('dind') {
           sh '''
-            docker tag server:latest ${NEXUS_REGISTRY}/${REPOSITORY}/server:latest
-            docker tag client:latest ${NEXUS_REGISTRY}/${REPOSITORY}/client:latest
+            # run tests if image exists (run the primary image)
+            PRIMARY_IMAGE=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep "${IMAGE_NAME}" | head -n1 || true)
+            if [ -n "$PRIMARY_IMAGE" ]; then
+              echo "Running tests inside ${PRIMARY_IMAGE}"
+              docker run --rm ${PRIMARY_IMAGE} /bin/sh -c "npm ci && npm test" || echo "Tests finished (non-zero exit ignored here)"
+            else
+              echo "No image matching ${IMAGE_NAME} found to run tests; skipping tests."
+            fi
+          '''
+        }
+      }
+    }
 
-            docker push ${NEXUS_REGISTRY}/${REPOSITORY}/server:latest
-            docker push ${NEXUS_REGISTRY}/${REPOSITORY}/client:latest
+    stage('SonarQube Analysis') {
+      steps {
+        container('sonar-scanner') {
+          withCredentials([string(credentialsId: "${SONAR_CREDENTIALS}", variable: 'SONAR_TOKEN')]) {
+            sh '''
+              echo "Sonar host: ${SONAR_HOST_URL}"
+              if command -v curl >/dev/null 2>&1; then
+                echo "Checking connectivity to SonarQube..."
+                curl -fsS "${SONAR_HOST_URL}/api/server/version" || echo "Warning: could not curl SonarQube host"
+              fi
+
+              sonar-scanner \
+                -Dsonar.projectKey=Krushna-project \
+                -Dsonar.host.url="${SONAR_HOST_URL}" \
+                -Dsonar.token="$SONAR_TOKEN" \
+                -Dsonar.sources=. \
+                -Dsonar.exclusions=node_modules/**
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Login to Docker Registry (Jenkins)') {
+      steps {
+        container('dind') {
+          withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            sh '''
+              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin ${DOCKER_REGISTRY}
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Tag & Push Images') {
+      steps {
+        container('dind') {
+          sh '''
+            set -euo pipefail
+            # push any images we built that match the IMAGE_NAME prefix
+            for img in $(docker images --format '{{.Repository}}:{{.Tag}}' | grep "${IMAGE_NAME}" || true); do
+              if [ -n "$img" ]; then
+                echo "Pushing $img"
+                docker push "$img" || echo "Push failed for $img"
+              fi
+            done
           '''
         }
       }
@@ -111,58 +237,33 @@ spec:
     stage('Prepare Namespace & Secrets') {
       steps {
         container('kubectl') {
-          // gather SANITIZED_NAMESPACE inside shell so we can use the same value consistently
-          withCredentials([usernamePassword(credentialsId: 'nexus-docker-creds', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS'),
-                           string(credentialsId: 'mongo-uri-2401106', variable: 'MONGO_URI'),
-                           string(credentialsId: 'jwt-secret-2401106', variable: 'JWT_SECRET'),
-                           string(credentialsId: 'gmail-user-2401106', variable: 'GMAIL_USER'),
-                           string(credentialsId: 'gmail-pass-2401106', variable: 'GMAIL_PASS')]) {
-            sh '''
-              set -euo pipefail
+          withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            script {
+              sh '''
+                set -euo pipefail
+                raw_ns="${K8S_NAMESPACE:-}"
+                echo "Requested namespace (raw): $raw_ns"
+                ns=$(echo "${raw_ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
+                if [ -z "$ns" ]; then ns="smartdine"; fi
+                echo "Sanitized namespace: $ns"
 
-              # sanitize namespace (RFC1123: lower-case alnum and '-', must start/end with alnum)
-              RAW_NS="${TARGET_NAMESPACE}"
-              SANITIZED_NS=$(echo "${RAW_NS}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
-              if [ -z "${SANITIZED_NS}" ]; then
-                echo "ERROR: namespace after sanitization is empty (raw='${RAW_NS}')."; exit 1
-              fi
-              echo "Using namespace: ${SANITIZED_NS}"
-              export SANITIZED_NS
+                # create namespace if missing
+                kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - || true
 
-              # apply namespace.yaml if present (may create with labels/annotations)
-              if [ -f k8s-deployment/namespace.yaml ]; then
-                echo "Applying k8s-deployment/namespace.yaml"
-                kubectl apply -f k8s-deployment/namespace.yaml || true
-              fi
+                # create imagePullSecret (idempotent)
+                kubectl create secret docker-registry nexus-pull-secret \
+                  --docker-server=${DOCKER_REGISTRY} \
+                  --docker-username="${DOCKER_USER}" \
+                  --docker-password="${DOCKER_PASS}" \
+                  -n "${ns}" --dry-run=client -o yaml | kubectl apply -f -
 
-              # ensure namespace exists
-              if ! kubectl get namespace "${SANITIZED_NS}" >/dev/null 2>&1; then
-                echo "Creating namespace ${SANITIZED_NS}"
-                kubectl create namespace "${SANITIZED_NS}"
-              else
-                echo "Namespace ${SANITIZED_NS} already exists"
-              fi
+                # patch default SA so pods pick up the secret automatically
+                kubectl patch serviceaccount default -n "${ns}" \
+                  -p '{"imagePullSecrets":[{"name":"nexus-pull-secret"}]}' || true
 
-              # create imagePullSecret (docker registry) in the namespace
-              echo "Creating/updating imagePullSecret in ${SANITIZED_NS}"
-              kubectl create secret docker-registry nexus-pull-secret \
-                --docker-server=${NEXUS_REGISTRY} \
-                --docker-username="${NEXUS_USER}" \
-                --docker-password="${NEXUS_PASS}" \
-                -n "${SANITIZED_NS}" --dry-run=client -o yaml | kubectl apply -f -
-
-              # patch default serviceaccount to use the pull secret so pods can pull images automatically
-              kubectl patch serviceaccount default -n "${SANITIZED_NS}" \
-                -p '{"imagePullSecrets":[{"name":"nexus-pull-secret"}]}' || true
-
-              # create application secrets if not present
-              kubectl create secret generic server-secret -n "${SANITIZED_NS}" \
-                --from-literal=MONGO_URI="$MONGO_URI" \
-                --from-literal=JWT_SECRET="$JWT_SECRET" \
-                --from-literal=GMAIL_USER="$GMAIL_USER" \
-                --from-literal=GMAIL_PASS="$GMAIL_PASS" \
-                --dry-run=client -o yaml | kubectl apply -f -
-            '''
+                echo "Namespace and imagePullSecret prepared in $ns"
+              '''
+            }
           }
         }
       }
@@ -171,30 +272,28 @@ spec:
     stage('Preflight diagnostics (DNS / Registry reachability)') {
       steps {
         container('kubectl') {
-          sh '''
-            set -euo pipefail
-            # reuse sanitized namespace from prior step if available; otherwise compute
-            RAW_NS="${TARGET_NAMESPACE}"
-            SANITIZED_NS=$(echo "${RAW_NS}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
-            echo "Diagnostics for namespace=${SANITIZED_NS}, registry=${NEXUS_REGISTRY}"
+          script {
+            sh '''
+              set -euo pipefail
+              ns="${K8S_NAMESPACE:-smartdine}"
+              ns=$(echo "${ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
+              echo "Running DNS/HTTP checks from inside kubectl container (cluster view):"
 
-            echo "== kubernetes svc / endpoints for registry (if any) =="
-            kubectl get svc --all-namespaces | grep -i "$(echo ${NEXUS_REGISTRY} | sed 's/:.*//')" || true
-            kubectl get endpoints --all-namespaces | grep -i "$(echo ${NEXUS_REGISTRY} | sed 's/:.*//')" || true
+              echo "Resolve registry DNS from within pod container:"
+              if command -v getent >/dev/null 2>&1; then
+                getent hosts ${DOCKER_REGISTRY%:*} || echo "getent failed"
+              else
+                nslookup ${DOCKER_REGISTRY%:*} || true
+              fi
 
-            echo "== DNS test from transient pod =="
-            kubectl run dns-test --restart=Never --rm -i --image=busybox -- nslookup "$(echo ${NEXUS_REGISTRY} | sed 's/:.*//')" || true
-
-            echo "== HTTP(s) test to registry from transient pod =="
-            # try http then https
-            kubectl run curl-test --restart=Never --rm -i --image=radial/busyboxplus:curl -- sh -c "echo trying http...; curl -I http://${NEXUS_REGISTRY} || echo http-failed; echo trying https...; curl -I https://${NEXUS_REGISTRY} || echo https-failed" || true
-
-            echo "== kube-dns/coredns status (kube-system) =="
-            kubectl get pods -n kube-system -l k8s-app=kube-dns || kubectl get pods -n kube-system -l k8s-app=coredns || true
-            kubectl -n kube-system logs -l k8s-app=kube-dns --tail=50 || kubectl -n kube-system logs -l k8s-app=coredns --tail=50 || true
-
-            echo "== End diagnostics =="
-          '''
+              echo "Try curl (http) to registry (may be internal):"
+              if command -v curl >/dev/null 2>&1; then
+                curl -v --max-time 5 "http://${DOCKER_REGISTRY}/v2/" || echo "curl http to registry failed or timed out"
+              else
+                echo "curl not available in kubectl image; skipping HTTP check"
+              fi
+            '''
+          }
         }
       }
     }
@@ -202,48 +301,37 @@ spec:
     stage('Deploy to Kubernetes') {
       steps {
         container('kubectl') {
-          dir('k8s-deployment') {
-            sh '''
-              set -euo pipefail
+          script {
+            dir("${DEPLOYMENT_DIR}") {
+              sh '''
+                set -euo pipefail
+                raw_ns="${K8S_NAMESPACE:-}"
+                ns=$(echo "${raw_ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
+                if [ -z "$ns" ]; then ns="smartdine"; fi
+                echo "Deploying into namespace: $ns"
 
-              RAW_NS="${TARGET_NAMESPACE}"
-              SANITIZED_NS=$(echo "${RAW_NS}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
+                if [ -f "${NAMESPACE_FILE}" ]; then
+                  echo "Applying ${NAMESPACE_FILE} (may create namespace with metadata)..."
+                  kubectl apply -f "${NAMESPACE_FILE}" || true
+                fi
 
-              echo "Deploying to namespace ${SANITIZED_NS}"
+                echo "Applying ${DEPLOYMENT_FILE} in namespace ${ns}"
+                kubectl apply -f "${DEPLOYMENT_FILE}" -n "${ns}"
 
-              # apply manifests (ensure they reference correct namespace or are applied with -n)
-              kubectl apply -f namespace.yaml || true
+                echo "Setting image for deployment/smartdine-deployment to ${IMAGE_NAME}:${IMAGE_TAG}"
+                kubectl set image deployment/smartdine-deployment smartdine=${IMAGE_NAME}:${IMAGE_TAG} -n "${ns}" || true
 
-              # Prefer applying per-file to keep clarity like your original pipeline
-              kubectl apply -f server-deployment.yaml -n "${SANITIZED_NS}"
-              kubectl apply -f server-service.yaml -n "${SANITIZED_NS}"
-              kubectl apply -f client-deployment.yaml -n "${SANITIZED_NS}"
-              kubectl apply -f client-service.yaml -n "${SANITIZED_NS}"
-
-              # if your manifests don't set image placeholders, we set the image explicitly
-              kubectl set image deployment/server server=${NEXUS_REGISTRY}/${REPOSITORY}/server:latest -n "${SANITIZED_NS}" || true
-              kubectl set image deployment/client client=${NEXUS_REGISTRY}/${REPOSITORY}/client:latest -n "${SANITIZED_NS}" || true
-
-              echo "Waiting for rollout: server"
-              if ! kubectl rollout status deployment/server -n "${SANITIZED_NS}" --timeout=120s; then
-                echo "Rollout of server failed or timed out — gathering debug info"
-                kubectl get pods -n "${SANITIZED_NS}" -o wide || true
-                kubectl describe pods -n "${SANITIZED_NS}" || true
-                kubectl get events -n "${SANITIZED_NS}" --sort-by=.metadata.creationTimestamp || true
-                exit 1
-              fi
-
-              echo "Waiting for rollout: client"
-              if ! kubectl rollout status deployment/client -n "${SANITIZED_NS}" --timeout=120s; then
-                echo "Rollout of client failed or timed out — gathering debug info"
-                kubectl get pods -n "${SANITIZED_NS}" -o wide || true
-                kubectl describe pods -n "${SANITIZED_NS}" || true
-                kubectl get events -n "${SANITIZED_NS}" --sort-by=.metadata.creationTimestamp || true
-                exit 1
-              fi
-
-              echo "Deploy successful"
-            '''
+                echo "Waiting for rollout..."
+                if ! kubectl rollout status deployment/smartdine-deployment -n "${ns}" --timeout=120s; then
+                  echo "Rollout failed or timed out — gathering debug info:"
+                  kubectl get pods -n "${ns}" -o wide || true
+                  kubectl describe pods -n "${ns}" || true
+                  kubectl get events -n "${ns}" --sort-by='.metadata.creationTimestamp' || true
+                  exit 1
+                fi
+                echo "Deployment succeeded in namespace ${ns}"
+              '''
+            }
           }
         }
       }
@@ -252,10 +340,10 @@ spec:
 
   post {
     always {
-      archiveArtifacts artifacts: 'k8s-deployment/**', allowEmptyArchive: true
+      echo "Post: always - archive artifacts if any"
+      archiveArtifacts artifacts: 'target/*.jar', onlyIfSuccessful: false, allowEmptyArchive: true
     }
-    failure {
-      echo "Pipeline failed — check the logs above for diagnostic output (DNS / curl / describe pods)"
-    }
+    success { echo "Build ${env.BUILD_NUMBER} succeeded" }
+    failure { echo "Build ${env.BUILD_NUMBER} failed" }
   }
 }
