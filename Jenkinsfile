@@ -33,10 +33,6 @@ spec:
       name: workspace-volume
   - name: dind
     image: docker:dind
-    # NOTE: removed the --registry-mirror flag here because the
-    # daemon.json (mounted from configMap) may also set registry-mirrors,
-    # causing "specified both as a flag and in the configuration file".
-    # Keep DOCKER_TLS_CERTDIR empty to run in this container.
     env:
     - name: DOCKER_TLS_CERTDIR
       value: ""
@@ -74,6 +70,7 @@ spec:
 
   parameters {
     string(name: 'K8S_NAMESPACE', defaultValue: 'smartdine', description: 'Namespace to deploy into (will be sanitized)')
+    booleanParam(name: 'ALLOW_INSECURE_REGISTRY', defaultValue: false, description: 'If checked, continue when registry only responds on HTTP (you must ensure cluster nodes can pull from HTTP/insecure registry)')
   }
 
   environment {
@@ -88,8 +85,6 @@ spec:
     DEPLOYMENT_FILE = 'smartdine-deployment.yaml'
     NAMESPACE_FILE = 'namespace.yaml'
     IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"
-
-    // Defensive default to avoid "unbound variable" errors in scripts
     RESTART_AGENTS = 'false'
   }
 
@@ -120,29 +115,34 @@ spec:
     stage('Registry preflight (protocol check)') {
       steps {
         container('kubectl') {
-          sh '''
-            set -euo pipefail
-            echo "Checking registry ${DOCKER_REGISTRY} reachability (https then http)..."
-            if command -v curl >/dev/null 2>&1; then
-              # first test HTTPS
-              if curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 5 "https://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
-                echo "Registry responds to HTTPS."
-              else
-                echo "HTTPS check failed or non-HTTPS response detected. Testing HTTP..."
-                if curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 5 "http://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
-                  echo "Registry only responds over HTTP."
-                  echo "ACTION: Make cluster nodes treat ${DOCKER_REGISTRY} as insecure registry, OR serve registry via HTTPS."
-                  # Stop early to avoid pushing images that nodes cannot pull.
-                  exit 2
+          script {
+            sh '''
+              set -euo pipefail
+              echo "Checking registry ${DOCKER_REGISTRY} reachability (https then http)..."
+              if command -v curl >/dev/null 2>&1; then
+                if curl -sS --connect-timeout 5 "https://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
+                  echo "Registry responds to HTTPS."
+                  echo "Continuing."
                 else
-                  echo "Could not reach registry at ${DOCKER_REGISTRY} over HTTP or HTTPS."
-                  exit 2
+                  echo "HTTPS check failed or non-HTTPS response detected. Testing HTTP..."
+                  if curl -sS --connect-timeout 5 "http://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
+                    echo "Registry only responds over HTTP."
+                    if [ "${ALLOW_INSECURE_REGISTRY}" = "true" ]; then
+                      echo "ALLOW_INSECURE_REGISTRY=true -> proceeding despite HTTP registry."
+                    else
+                      echo "Registry uses HTTP. To proceed set ALLOW_INSECURE_REGISTRY=true or configure your registry with TLS / mark registry insecure on nodes."
+                      exit 2
+                    fi
+                  else
+                    echo "Could not reach registry at ${DOCKER_REGISTRY} over HTTP or HTTPS."
+                    exit 2
+                  fi
                 fi
+              else
+                echo "curl not present in this container; skipping protocol preflight."
               fi
-            else
-              echo "curl not present in this container; skipping protocol preflight."
-            fi
-          '''
+            '''
+          }
         }
       }
     }
@@ -151,17 +151,16 @@ spec:
       steps {
         container('kubectl') {
           script {
-            // If a config exists in repo, apply it; otherwise skip.
             sh '''
               set -euo pipefail
-              echo "Applying docker-daemon-config ConfigMap in namespace jenkins (will merge/replace daemon.json) if file exists in repo"
+              echo "Applying docker-daemon-config ConfigMap in namespace jenkins (if present in repo)"
               if [ -f "${DEPLOYMENT_DIR}/docker-daemon-config.yaml" ]; then
                 cat "${DEPLOYMENT_DIR}/docker-daemon-config.yaml" | kubectl -n jenkins apply -f -
-                echo "ConfigMap applied from repo."
+                echo "Applied docker-daemon-config from repo."
               else
                 echo "No ${DEPLOYMENT_DIR}/docker-daemon-config.yaml found in repo -> skipping apply"
               fi
-              # RESTART_AGENTS default is false; keep behavior safe
+
               if [ "${RESTART_AGENTS:-false}" = "true" ]; then
                 echo "RESTART_AGENTS=true -> deleting existing agent pods so they pick new config"
                 kubectl -n jenkins delete pods -l jenkins/my-jenkins-jenkins-agent=true --ignore-not-found || true
@@ -296,7 +295,6 @@ spec:
             sh '''
               set -euo pipefail
               raw_ns="${K8S_NAMESPACE:-}"
-              echo "Requested namespace (raw): $raw_ns"
               ns=$(echo "${raw_ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
               if [ -z "$ns" ]; then ns="smartdine"; fi
               echo "Sanitized namespace: $ns"
@@ -392,7 +390,6 @@ spec:
     always {
       echo "Post: always - attempt to archive artifacts (safe guarded)"
       script {
-        // Try to archive but don't fail the post step if workspace is gone / agent died.
         try {
           archiveArtifacts artifacts: 'target/*.jar', onlyIfSuccessful: false, allowEmptyArchive: true
         } catch (err) {
