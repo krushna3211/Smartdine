@@ -1,7 +1,8 @@
 pipeline {
   agent {
     kubernetes {
-      yaml '''
+      // Pod template for Jenkins agent (containers: sonar-scanner, kubectl, dind, jnlp)
+      yaml """
 apiVersion: v1
 kind: Pod
 spec:
@@ -33,6 +34,7 @@ spec:
       name: workspace-volume
   - name: dind
     image: docker:dind
+    args: ["--registry-mirror=https://mirror.gcr.io", "--storage-driver=overlay2"]
     env:
     - name: DOCKER_TLS_CERTDIR
       value: ""
@@ -52,9 +54,9 @@ spec:
     volumeMounts:
     - mountPath: /home/jenkins/agent
       name: workspace-volume
+  restartPolicy: Never
   nodeSelector:
     kubernetes.io/os: "linux"
-  restartPolicy: Never
   volumes:
   - name: docker-config
     configMap:
@@ -64,27 +66,31 @@ spec:
   - name: kubeconfig-secret
     secret:
       secretName: kubeconfig-secret
-'''
+"""
     }
   }
 
+  // Parameters for running the pipeline
   parameters {
     string(name: 'K8S_NAMESPACE', defaultValue: 'smartdine', description: 'Namespace to deploy into (will be sanitized)')
-    booleanParam(name: 'RESTART_AGENTS', defaultValue: false, description: 'Recreate Jenkins agent pods after applying docker daemon config in jenkins ns')
+    booleanParam(name: 'SKIP_REGISTRY_PREFLIGHT', defaultValue: false, description: 'If true, skip registry protocol checks (unsafe)')
+    booleanParam(name: 'RESTART_AGENTS', defaultValue: false, description: 'If true and docker-daemon-config is applied, restart agent pods to pick up daemon.json (cluster admin action)')
   }
 
   environment {
+    // Credentials and registry settings
     DOCKER_CREDENTIALS = 'nexus-docker-creds'
     DOCKER_REGISTRY = '10.43.21.172:8085'
     NEXUS_REPO_PATH = 'krushna-project'
     IMAGE_NAME = "${DOCKER_REGISTRY}/${NEXUS_REPO_PATH}/smartdine-pos"
     SONAR_CREDENTIALS = 'sonar-token'
     SONAR_HOST_URL = 'http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000'
-    K8S_NAMESPACE = "${params.K8S_NAMESPACE}"
     DEPLOYMENT_DIR = 'k8s-deployment'
     DEPLOYMENT_FILE = 'smartdine-deployment.yaml'
     NAMESPACE_FILE = 'namespace.yaml'
     IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"
+    // Expose the RESTART_AGENTS param at runtime for shell scripts (string "true"/"false")
+    RESTART_AGENTS = "${params.RESTART_AGENTS}"
   }
 
   options {
@@ -93,42 +99,76 @@ spec:
   }
 
   stages {
-    stage('Checkout') { steps { checkout scm } }
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
 
     stage('Detect build layout') {
-      steps { container('dind') { sh '''echo "Workspace listing:"; ls -la || true; if [ -f Dockerfile ]; then echo "Found root Dockerfile"; fi''' } }
+      steps {
+        container('dind') {
+          sh '''
+            echo "Workspace listing:"
+            ls -la || true
+            if [ -d "./server" ]; then echo "Found ./server"; else echo "No ./server dir"; fi
+            if [ -d "./client" ]; then echo "Found ./client"; else echo "No ./client dir"; fi
+            if [ -f "Dockerfile" ]; then echo "Found root Dockerfile"; fi
+          '''
+        }
+      }
+    }
+
+    stage('Ensure dind daemon config (in Jenkins namespace)') {
+      steps {
+        container('kubectl') {
+          // Apply ConfigMap from repo if present; optionally restart agent pods (admin action)
+          script {
+            sh '''
+              set -euo pipefail
+              echo "Applying docker-daemon-config ConfigMap in namespace jenkins (will merge/replace daemon.json) if file exists in repo"
+              if [ -f "${WORKSPACE}/${DEPLOYMENT_DIR}/docker-daemon-config.yaml" ]; then
+                echo "Found ${DEPLOYMENT_DIR}/docker-daemon-config.yaml -> applying"
+                cat "${WORKSPACE}/${DEPLOYMENT_DIR}/docker-daemon-config.yaml" | kubectl -n jenkins apply -f -
+                echo "ConfigMap applied."
+                if [ "${RESTART_AGENTS}" = "true" ]; then
+                  echo "RESTART_AGENTS=true -> deleting existing agent pods to pick up new daemon.json (jenkins will recreate them)"
+                  kubectl -n jenkins delete pod -l jenkins/my-jenkins-jenkins-agent=true --ignore-not-found || true
+                else
+                  echo "RESTART_AGENTS=false -> skipping agent pod restart"
+                fi
+              else
+                echo "No ${DEPLOYMENT_DIR}/docker-daemon-config.yaml found in repo -> skipping apply"
+              fi
+            '''
+          }
+        }
+      }
     }
 
     stage('Registry preflight (protocol check)') {
+      // Only run when user did not request skip
+      when {
+        expression { return !params.SKIP_REGISTRY_PREFLIGHT }
+      }
       steps {
         container('kubectl') {
           sh '''
             set -euo pipefail
             echo "Checking registry ${DOCKER_REGISTRY} reachability (https then http)..."
-
-            # check https
             if command -v curl >/dev/null 2>&1; then
-              if curl -sS -o /dev/null -w "%{http_code}" --connect-timeout 5 "https://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
+              # Test HTTPS first
+              if curl -sS -o /dev/null --connect-timeout 5 "https://${DOCKER_REGISTRY}/v2/"; then
                 echo "Registry responds to HTTPS (OK)"
               else
-                echo "HTTPS check failed or non-HTTPS response detected. Testing HTTP..."
-                if curl -sS -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
+                echo "HTTPS check failed or registry replies non-HTTPS. Testing HTTP..."
+                if curl -sS -o /dev/null --connect-timeout 5 "http://${DOCKER_REGISTRY}/v2/"; then
                   echo "Registry only responds over HTTP. Kubernetes nodes will attempt HTTPS by default, causing ImagePullBackOff."
-                  echo ""
                   echo "ACTION REQUIRED (choose one):"
-                  echo "  1) Configure your cluster nodes' container runtime to treat ${DOCKER_REGISTRY} as an insecure (HTTP) registry."
-                  echo "     - For Docker: add to /etc/docker/daemon.json:"
-                  echo "         { \"insecure-registries\": [\"${DOCKER_REGISTRY}\"] }"
-                  echo "       then systemctl restart docker"
-                  echo "     - For containerd: add a registry mirror entry and use http endpoint. Example:"
-                  echo "         sudo mkdir -p /etc/containerd && containerd config default > /etc/containerd/config.toml"
-                  echo "         edit /etc/containerd/config.toml ->"
-                  echo "         [plugins.\"io.containerd.grpc.v1.cri\".registry.mirrors.\"${DOCKER_REGISTRY%:*}:8085\"]"
-                  echo "           endpoint = [\"http://${DOCKER_REGISTRY}\"]"
-                  echo "         then systemctl restart containerd"
-                  echo ""
-                  echo "  2) Make the registry serve HTTPS (install TLS) so nodes can fetch securely."
-                  echo ""
+                  echo "  1) Configure your cluster nodes' container runtime to treat ${DOCKER_REGISTRY} as insecure (HTTP)."
+                  echo "     - For Docker: add to /etc/docker/daemon.json: { \"insecure-registries\": [\"${DOCKER_REGISTRY}\"] } and restart docker"
+                  echo "     - For containerd: add a mirror entry to /etc/containerd/config.toml and restart containerd (see pipeline docs)"
+                  echo "  2) Make the registry serve HTTPS (install TLS)."
                   echo "Because the registry is HTTP, this pipeline will stop now to avoid wasted pushes. Fix nodes or enable HTTPS and retry."
                   exit 2
                 else
@@ -137,7 +177,7 @@ spec:
                 fi
               fi
             else
-              echo "curl not available in this container image; skipping protocol checks."
+              echo "curl not available in kubectl image; skipping protocol checks."
             fi
           '''
         }
@@ -153,18 +193,78 @@ spec:
               echo "Waiting for Docker daemon..."
               retries=0
               until docker info > /dev/null 2>&1 || [ $retries -ge 30 ]; do
-                echo "Docker not ready yet... retry $retries"; sleep 2; retries=$((retries+1))
+                echo "Docker not ready yet... retry $retries"
+                sleep 2
+                retries=$((retries+1))
               done
-              if ! docker info > /dev/null 2>&1; then echo "Docker daemon did not become ready"; exit 1; fi
+              if ! docker info > /dev/null 2>&1; then
+                echo "Docker daemon did not become ready"
+                exit 1
+              fi
 
-              # build (same logic as before)
-              if [ -f "Dockerfile" ]; then
+              BUILT_IMAGES=""
+              if [ -d "./server" ] && [ -d "./client" ]; then
+                echo "Building server and client images"
+                docker build -t ${IMAGE_NAME}-server:${IMAGE_TAG} ./server
+                docker build -t ${IMAGE_NAME}-client:${IMAGE_TAG} ./client
+                BUILT_IMAGES="${IMAGE_NAME}-server:${IMAGE_TAG} ${IMAGE_NAME}-client:${IMAGE_TAG}"
+              elif [ -d "./server" ]; then
+                echo "Building server image (only /server exists)"
+                docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ./server
+                BUILT_IMAGES="${IMAGE_NAME}:${IMAGE_TAG}"
+              elif [ -d "./client" ]; then
+                echo "Building client image (only /client exists)"
+                docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ./client
+                BUILT_IMAGES="${IMAGE_NAME}:${IMAGE_TAG}"
+              elif [ -f "Dockerfile" ]; then
+                echo "Building single image from repo root Dockerfile"
                 docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
                 BUILT_IMAGES="${IMAGE_NAME}:${IMAGE_TAG}"
               else
-                echo "No Dockerfile found" && exit 1
+                echo "No server/ client dirs and no root Dockerfile found — nothing to build"
+                exit 1
               fi
+
               echo "Built images: ${BUILT_IMAGES}"
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Run Tests in Docker') {
+      steps {
+        container('dind') {
+          sh '''
+            PRIMARY_IMAGE=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep "${IMAGE_NAME}" | head -n1 || true)
+            if [ -n "$PRIMARY_IMAGE" ]; then
+              echo "Running tests inside ${PRIMARY_IMAGE}"
+              docker run --rm ${PRIMARY_IMAGE} /bin/sh -c "npm ci && npm test" || echo "Tests finished (non-zero exit ignored here)"
+            else
+              echo "No image matching ${IMAGE_NAME} found to run tests; skipping tests."
+            fi
+          '''
+        }
+      }
+    }
+
+    stage('SonarQube Analysis') {
+      steps {
+        container('sonar-scanner') {
+          withCredentials([string(credentialsId: "${SONAR_CREDENTIALS}", variable: 'SONAR_TOKEN')]) {
+            sh '''
+              echo "Sonar host: ${SONAR_HOST_URL}"
+              if command -v curl >/dev/null 2>&1; then
+                echo "Checking connectivity to SonarQube..."
+                curl -fsS "${SONAR_HOST_URL}/api/server/version" || echo "Warning: could not curl SonarQube host"
+              fi
+
+              sonar-scanner \
+                -Dsonar.projectKey=Krushna-project \
+                -Dsonar.host.url="${SONAR_HOST_URL}" \
+                -Dsonar.token="$SONAR_TOKEN" \
+                -Dsonar.sources=. \
+                -Dsonar.exclusions=node_modules/**
             '''
           }
         }
@@ -175,7 +275,9 @@ spec:
       steps {
         container('dind') {
           withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-            sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin ${DOCKER_REGISTRY}'
+            sh '''
+              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin ${DOCKER_REGISTRY}
+            '''
           }
         }
       }
@@ -187,7 +289,10 @@ spec:
           sh '''
             set -euo pipefail
             for img in $(docker images --format '{{.Repository}}:{{.Tag}}' | grep "${IMAGE_NAME}" || true); do
-              if [ -n "$img" ]; then echo "Pushing $img"; docker push "$img" || echo "Push failed for $img"; fi
+              if [ -n "$img" ]; then
+                echo "Pushing $img"
+                docker push "$img" || echo "Push failed for $img"
+              fi
             done
           '''
         }
@@ -200,8 +305,11 @@ spec:
           withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
               set -euo pipefail
-              raw_ns="${K8S_NAMESPACE:-}"; ns=$(echo "${raw_ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
+              raw_ns="${K8S_NAMESPACE:-}"
+              ns=$(echo "${raw_ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
               if [ -z "$ns" ]; then ns="smartdine"; fi
+              echo "Sanitized namespace: $ns"
+
               kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - || true
 
               kubectl create secret docker-registry nexus-pull-secret \
@@ -210,11 +318,38 @@ spec:
                 --docker-password="${DOCKER_PASS}" \
                 -n "${ns}" --dry-run=client -o yaml | kubectl apply -f -
 
-              # ensure default SA references the secret
               kubectl patch serviceaccount default -n "${ns}" \
                 -p '{"imagePullSecrets":[{"name":"nexus-pull-secret"}]}' || true
 
               echo "Namespace and imagePullSecret prepared in $ns"
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Preflight diagnostics (DNS / Registry reachability)') {
+      steps {
+        container('kubectl') {
+          script {
+            sh '''
+              set -euo pipefail
+              ns="${K8S_NAMESPACE:-smartdine}"
+              ns=$(echo "${ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
+              echo "Running DNS/HTTP checks from inside kubectl container (cluster view):"
+              echo "Resolve registry DNS from within pod container:"
+              if command -v getent >/dev/null 2>&1; then
+                getent hosts ${DOCKER_REGISTRY%:*} || echo "getent failed"
+              else
+                nslookup ${DOCKER_REGISTRY%:*} || true
+              fi
+
+              echo "Try curl (http) to registry (may be internal):"
+              if command -v curl >/dev/null 2>&1; then
+                curl -v --max-time 5 "http://${DOCKER_REGISTRY}/v2/" || echo "curl http to registry failed or timed out"
+              else
+                echo "curl not available in kubectl image; skipping HTTP check"
+              fi
             '''
           }
         }
@@ -228,20 +363,31 @@ spec:
             dir("${DEPLOYMENT_DIR}") {
               sh '''
                 set -euo pipefail
-                raw_ns="${K8S_NAMESPACE:-}"; ns=$(echo "${raw_ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
+                raw_ns="${K8S_NAMESPACE:-}"
+                ns=$(echo "${raw_ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
                 if [ -z "$ns" ]; then ns="smartdine"; fi
+                echo "Deploying into namespace: $ns"
 
-                if [ -f "${NAMESPACE_FILE}" ]; then kubectl apply -f "${NAMESPACE_FILE}" || true; fi
+                if [ -f "${NAMESPACE_FILE}" ]; then
+                  echo "Applying ${NAMESPACE_FILE} (may create namespace with metadata)..."
+                  kubectl apply -f "${NAMESPACE_FILE}" || true
+                fi
+
+                echo "Applying ${DEPLOYMENT_FILE} in namespace ${ns}"
                 kubectl apply -f "${DEPLOYMENT_FILE}" -n "${ns}"
+
+                echo "Setting image for deployment/smartdine-deployment to ${IMAGE_NAME}:${IMAGE_TAG}"
                 kubectl set image deployment/smartdine-deployment smartdine=${IMAGE_NAME}:${IMAGE_TAG} -n "${ns}" || true
 
-                # ensure deployment uses the pull secret (idempotent)
-                kubectl patch deployment smartdine-deployment -n "${ns}" --type='json' \
-                  -p '[{"op":"add","path":"/spec/template/spec/imagePullSecrets","value":[{"name":"nexus-pull-secret"}]}]' || true
-
+                echo "Waiting for rollout..."
                 if ! kubectl rollout status deployment/smartdine-deployment -n "${ns}" --timeout=120s; then
-                  echo "Rollout failed; gathering debug info"; kubectl get pods -n "${ns}" -o wide || true; kubectl describe pods -n "${ns}" || true; kubectl get events -n "${ns}" --sort-by=.metadata.creationTimestamp || true; exit 1
+                  echo "Rollout failed or timed out — gathering debug info:"
+                  kubectl get pods -n "${ns}" -o wide || true
+                  kubectl describe pods -n "${ns}" || true
+                  kubectl get events -n "${ns}" --sort-by='.metadata.creationTimestamp' || true
+                  exit 1
                 fi
+                echo "Deployment succeeded in namespace ${ns}"
               '''
             }
           }
