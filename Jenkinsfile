@@ -1,8 +1,7 @@
 pipeline {
   agent {
     kubernetes {
-      // Pod template for Jenkins agent (containers: sonar-scanner, kubectl, dind, jnlp)
-      yaml """
+      yaml '''
 apiVersion: v1
 kind: Pod
 spec:
@@ -34,7 +33,10 @@ spec:
       name: workspace-volume
   - name: dind
     image: docker:dind
-    args: ["--registry-mirror=https://mirror.gcr.io", "--storage-driver=overlay2"]
+    # NOTE: removed the --registry-mirror flag here because the
+    # daemon.json (mounted from configMap) may also set registry-mirrors,
+    # causing "specified both as a flag and in the configuration file".
+    # Keep DOCKER_TLS_CERTDIR empty to run in this container.
     env:
     - name: DOCKER_TLS_CERTDIR
       value: ""
@@ -54,9 +56,9 @@ spec:
     volumeMounts:
     - mountPath: /home/jenkins/agent
       name: workspace-volume
-  restartPolicy: Never
   nodeSelector:
     kubernetes.io/os: "linux"
+  restartPolicy: Never
   volumes:
   - name: docker-config
     configMap:
@@ -66,31 +68,29 @@ spec:
   - name: kubeconfig-secret
     secret:
       secretName: kubeconfig-secret
-"""
+'''
     }
   }
 
-  // Parameters for running the pipeline
   parameters {
     string(name: 'K8S_NAMESPACE', defaultValue: 'smartdine', description: 'Namespace to deploy into (will be sanitized)')
-    booleanParam(name: 'SKIP_REGISTRY_PREFLIGHT', defaultValue: false, description: 'If true, skip registry protocol checks (unsafe)')
-    booleanParam(name: 'RESTART_AGENTS', defaultValue: false, description: 'If true and docker-daemon-config is applied, restart agent pods to pick up daemon.json (cluster admin action)')
   }
 
   environment {
-    // Credentials and registry settings
     DOCKER_CREDENTIALS = 'nexus-docker-creds'
     DOCKER_REGISTRY = '10.43.21.172:8085'
     NEXUS_REPO_PATH = 'krushna-project'
     IMAGE_NAME = "${DOCKER_REGISTRY}/${NEXUS_REPO_PATH}/smartdine-pos"
     SONAR_CREDENTIALS = 'sonar-token'
     SONAR_HOST_URL = 'http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000'
+    K8S_NAMESPACE = "${params.K8S_NAMESPACE}"
     DEPLOYMENT_DIR = 'k8s-deployment'
     DEPLOYMENT_FILE = 'smartdine-deployment.yaml'
     NAMESPACE_FILE = 'namespace.yaml'
     IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"
-    // Expose the RESTART_AGENTS param at runtime for shell scripts (string "true"/"false")
-    RESTART_AGENTS = "${params.RESTART_AGENTS}"
+
+    // Defensive default to avoid "unbound variable" errors in scripts
+    RESTART_AGENTS = 'false'
   }
 
   options {
@@ -100,9 +100,7 @@ spec:
 
   stages {
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
     stage('Detect build layout') {
@@ -119,67 +117,59 @@ spec:
       }
     }
 
-    stage('Ensure dind daemon config (in Jenkins namespace)') {
-      steps {
-        container('kubectl') {
-          // Apply ConfigMap from repo if present; optionally restart agent pods (admin action)
-          script {
-            sh '''
-              set -euo pipefail
-              echo "Applying docker-daemon-config ConfigMap in namespace jenkins (will merge/replace daemon.json) if file exists in repo"
-              if [ -f "${WORKSPACE}/${DEPLOYMENT_DIR}/docker-daemon-config.yaml" ]; then
-                echo "Found ${DEPLOYMENT_DIR}/docker-daemon-config.yaml -> applying"
-                cat "${WORKSPACE}/${DEPLOYMENT_DIR}/docker-daemon-config.yaml" | kubectl -n jenkins apply -f -
-                echo "ConfigMap applied."
-                if [ "${RESTART_AGENTS}" = "true" ]; then
-                  echo "RESTART_AGENTS=true -> deleting existing agent pods to pick up new daemon.json (jenkins will recreate them)"
-                  kubectl -n jenkins delete pod -l jenkins/my-jenkins-jenkins-agent=true --ignore-not-found || true
-                else
-                  echo "RESTART_AGENTS=false -> skipping agent pod restart"
-                fi
-              else
-                echo "No ${DEPLOYMENT_DIR}/docker-daemon-config.yaml found in repo -> skipping apply"
-              fi
-            '''
-          }
-        }
-      }
-    }
-
     stage('Registry preflight (protocol check)') {
-      // Only run when user did not request skip
-      when {
-        expression { return !params.SKIP_REGISTRY_PREFLIGHT }
-      }
       steps {
         container('kubectl') {
           sh '''
             set -euo pipefail
             echo "Checking registry ${DOCKER_REGISTRY} reachability (https then http)..."
             if command -v curl >/dev/null 2>&1; then
-              # Test HTTPS first
-              if curl -sS -o /dev/null --connect-timeout 5 "https://${DOCKER_REGISTRY}/v2/"; then
-                echo "Registry responds to HTTPS (OK)"
+              # first test HTTPS
+              if curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 5 "https://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
+                echo "Registry responds to HTTPS."
               else
-                echo "HTTPS check failed or registry replies non-HTTPS. Testing HTTP..."
-                if curl -sS -o /dev/null --connect-timeout 5 "http://${DOCKER_REGISTRY}/v2/"; then
-                  echo "Registry only responds over HTTP. Kubernetes nodes will attempt HTTPS by default, causing ImagePullBackOff."
-                  echo "ACTION REQUIRED (choose one):"
-                  echo "  1) Configure your cluster nodes' container runtime to treat ${DOCKER_REGISTRY} as insecure (HTTP)."
-                  echo "     - For Docker: add to /etc/docker/daemon.json: { \"insecure-registries\": [\"${DOCKER_REGISTRY}\"] } and restart docker"
-                  echo "     - For containerd: add a mirror entry to /etc/containerd/config.toml and restart containerd (see pipeline docs)"
-                  echo "  2) Make the registry serve HTTPS (install TLS)."
-                  echo "Because the registry is HTTP, this pipeline will stop now to avoid wasted pushes. Fix nodes or enable HTTPS and retry."
+                echo "HTTPS check failed or non-HTTPS response detected. Testing HTTP..."
+                if curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 5 "http://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
+                  echo "Registry only responds over HTTP."
+                  echo "ACTION: Make cluster nodes treat ${DOCKER_REGISTRY} as insecure registry, OR serve registry via HTTPS."
+                  # Stop early to avoid pushing images that nodes cannot pull.
                   exit 2
                 else
-                  echo "Registry not reachable over HTTP or HTTPS from this pod. Check network/DNS."
-                  exit 3
+                  echo "Could not reach registry at ${DOCKER_REGISTRY} over HTTP or HTTPS."
+                  exit 2
                 fi
               fi
             else
-              echo "curl not available in kubectl image; skipping protocol checks."
+              echo "curl not present in this container; skipping protocol preflight."
             fi
           '''
+        }
+      }
+    }
+
+    stage('Ensure dind daemon config (in Jenkins namespace)') {
+      steps {
+        container('kubectl') {
+          script {
+            // If a config exists in repo, apply it; otherwise skip.
+            sh '''
+              set -euo pipefail
+              echo "Applying docker-daemon-config ConfigMap in namespace jenkins (will merge/replace daemon.json) if file exists in repo"
+              if [ -f "${DEPLOYMENT_DIR}/docker-daemon-config.yaml" ]; then
+                cat "${DEPLOYMENT_DIR}/docker-daemon-config.yaml" | kubectl -n jenkins apply -f -
+                echo "ConfigMap applied from repo."
+              else
+                echo "No ${DEPLOYMENT_DIR}/docker-daemon-config.yaml found in repo -> skipping apply"
+              fi
+              # RESTART_AGENTS default is false; keep behavior safe
+              if [ "${RESTART_AGENTS:-false}" = "true" ]; then
+                echo "RESTART_AGENTS=true -> deleting existing agent pods so they pick new config"
+                kubectl -n jenkins delete pods -l jenkins/my-jenkins-jenkins-agent=true --ignore-not-found || true
+              else
+                echo "RESTART_AGENTS=false -> skipping agent pod restart"
+              fi
+            '''
+          }
         }
       }
     }
@@ -306,6 +296,7 @@ spec:
             sh '''
               set -euo pipefail
               raw_ns="${K8S_NAMESPACE:-}"
+              echo "Requested namespace (raw): $raw_ns"
               ns=$(echo "${raw_ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
               if [ -z "$ns" ]; then ns="smartdine"; fi
               echo "Sanitized namespace: $ns"
@@ -337,6 +328,7 @@ spec:
               ns="${K8S_NAMESPACE:-smartdine}"
               ns=$(echo "${ns}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
               echo "Running DNS/HTTP checks from inside kubectl container (cluster view):"
+
               echo "Resolve registry DNS from within pod container:"
               if command -v getent >/dev/null 2>&1; then
                 getent hosts ${DOCKER_REGISTRY%:*} || echo "getent failed"
@@ -398,8 +390,15 @@ spec:
 
   post {
     always {
-      echo "Post: always - archive artifacts if any"
-      archiveArtifacts artifacts: 'target/*.jar', onlyIfSuccessful: false, allowEmptyArchive: true
+      echo "Post: always - attempt to archive artifacts (safe guarded)"
+      script {
+        // Try to archive but don't fail the post step if workspace is gone / agent died.
+        try {
+          archiveArtifacts artifacts: 'target/*.jar', onlyIfSuccessful: false, allowEmptyArchive: true
+        } catch (err) {
+          echo "Archive skipped (workspace/agent not available or other error): ${err}"
+        }
+      }
     }
     success { echo "Build ${env.BUILD_NUMBER} succeeded" }
     failure { echo "Build ${env.BUILD_NUMBER} failed" }
