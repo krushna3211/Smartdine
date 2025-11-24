@@ -54,14 +54,15 @@ spec:
             steps {
                 container('dind') {
                     sh '''
-                        # Wait for Docker daemon to be ready
+                        # 1. Wait loop: Keep checking until Docker is alive
                         echo "Waiting for Docker daemon..."
                         while ! docker info > /dev/null 2>&1; do
-                            sleep 1
+                            echo "Docker not ready yet..."
+                            sleep 2
                         done
-                        echo "Docker daemon is ready!"
+                        echo "Docker is READY!"
 
-                        # Now build the image
+                        # 2. Now it is safe to build
                         docker build -t smartdine-pos:latest .
                         docker image ls
                     '''
