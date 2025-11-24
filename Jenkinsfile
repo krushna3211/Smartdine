@@ -1,8 +1,7 @@
 pipeline {
-    agent {
-        kubernetes {
-            // This YAML setup is perfect for your college, do not change it.
-            yaml '''
+  agent {
+    kubernetes {
+      yaml '''
 apiVersion: v1
 kind: Pod
 spec:
@@ -22,7 +21,7 @@ spec:
       readOnlyRootFilesystem: false
     env:
     - name: KUBECONFIG
-      value: /kube/config        
+      value: /kube/config
     volumeMounts:
     - name: kubeconfig-secret
       mountPath: /kube/config
@@ -47,96 +46,146 @@ spec:
     secret:
       secretName: kubeconfig-secret
 '''
-        }
     }
-    
+  }
+
+  environment {
+    // Replace these with the real Jenkins credential IDs and registry
+    DOCKER_CREDENTIALS = 'nexus-docker-creds'            // username/password credential ID for Nexus
+    DOCKER_REGISTRY = 'nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085'
+    NEXUS_REPO_PATH = 'krushna-project'                 // your repo path in Nexus
+    IMAGE_NAME = "${DOCKER_REGISTRY}/${NEXUS_REPO_PATH}/smartdine-pos"
+    SONAR_CREDENTIALS = 'sonar-token'                   // Jenkins string credential containing Sonar token
+    SONAR_HOST_URL = 'http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000'
+    K8S_NAMESPACE = 'YOUR_NAMESPACE'                    // replace with your k8s namespace
+    DEPLOYMENT_DIR = 'k8s-deployment'                   // folder containing your k8s yaml
+    DEPLOYMENT_FILE = 'smartdine-deployment.yaml'       // filename to apply
+    IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"
+  }
+
+  options {
+    timestamps()
+    buildDiscarder(logRotator(numToKeepStr: '20'))
+    timeout(time: 60, unit: 'MINUTES')
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
     stage('Build Docker Image') {
-            steps {
-                container('dind') {
-                    sh '''
-                        # 1. Wait loop: Keep checking until Docker is alive
-                        echo "Waiting for Docker daemon..."
-                        while ! docker info > /dev/null 2>&1; do
-                            echo "Docker not ready yet..."
-                            sleep 2
-                        done
-                        echo "Docker is READY!"
+      steps {
+        container('dind') {
+          sh '''
+            echo "Waiting for Docker daemon..."
+            retries=0
+            until docker info > /dev/null 2>&1 || [ $retries -ge 30 ]; do
+              echo "Docker not ready yet... retry $retries"
+              sleep 2
+              retries=$((retries+1))
+            done
+            if ! docker info > /dev/null 2>&1; then
+              echo "Docker daemon did not become ready"
+              exit 1
+            fi
 
-                        # 2. Now it is safe to build
-                        docker build -t smartdine-pos:latest .
-                        docker image ls
-                    '''
-                }
-            }
+            echo "Building image ${IMAGE_NAME}:${IMAGE_TAG}"
+            docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+            docker image ls ${IMAGE_NAME} || true
+          '''
         }
-
-        stage('Run Tests in Docker') {
-            steps {
-                container('dind') {
-                    sh '''
-                        # Run npm test inside the container
-                        docker run --rm smartdine-pos:latest npm test
-                    '''
-                }
-            }
-        }
-
-        stage('SonarQube Analysis') {
-            steps {
-                container('sonar-scanner') {
-                    // CHECK THIS: Use 'sonar-token' or create a credential with your ID like 'sonar-token-YOURID'
-                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                        sh '''
-                            sonar-scanner \
-                                -Dsonar.projectKey=Krushna-project \
-                                -Dsonar.host.url=http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000 \
-                                -Dsonar.login=sqp_7ab8155024bcd0bf186d45ee01e0f0cdf0db062e \
-                                -Dsonar.sources=. \
-                                -Dsonar.exclusions=node_modules/**
-                        '''
-                    }
-                }
-            }
-        }
-
-        stage('Login to Docker Registry') {
-            steps {
-                container('dind') {
-                    sh 'docker --version'
-                    sh 'sleep 5'
-                    // Note: In a real job, don't hardcode password. For college, it might be required.
-                    sh 'docker login nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085 -u admin -p Changeme@2025'
-                }
-            }
-        }
-
-        stage('Build - Tag - Push') {
-            steps {
-                container('dind') {
-                    // CHECK THIS: Replace 'krushna-project' with your folder name in Nexus (usually your name or ID)
-                    sh 'docker tag smartdine-pos:latest nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/krushna-project/smartdine-pos:v1'
-                    sh 'docker push nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/krushna-project/smartdine-pos:v1'
-                }
-            }
-        }
-
-        stage('Deploy Application') {
-            steps {
-                container('kubectl') {
-                    script {
-                        // We need to create the deployment file dynamically or have it in a folder
-                        // This command applies the deployment.
-                        // Make sure you create the folder 'k8s-deployment' and file 'smartdine.yaml' first!
-                        dir('k8s-deployment') {
-                            sh '''
-                                kubectl apply -f smartdine-deployment.yaml
-                                
-                                # CHECK THIS: Replace 'YOUR_NAMESPACE' with your actual Kubernetes namespace (e.g. 2401199)
-                                kubectl rollout status deployment/smartdine-deployment -n YOUR_NAMESPACE
-                            '''
-                        }
-                    }
-                }
-            }
-        }
+      }
     }
+
+    stage('Run Tests in Docker') {
+      steps {
+        container('dind') {
+          sh '''
+            echo "Running tests inside image..."
+            docker run --rm ${IMAGE_NAME}:${IMAGE_TAG} /bin/sh -c "npm ci && npm test"
+          '''
+        }
+      }
+    }
+
+    stage('SonarQube Analysis') {
+      steps {
+        container('sonar-scanner') {
+          withCredentials([string(credentialsId: "${SONAR_CREDENTIALS}", variable: 'SONAR_TOKEN')]) {
+            sh """
+              sonar-scanner \
+                -Dsonar.projectKey=Krushna-project \
+                -Dsonar.host.url=${SONAR_HOST_URL} \
+                -Dsonar.login=${SONAR_TOKEN} \
+                -Dsonar.sources=. \
+                -Dsonar.exclusions=node_modules/**
+            """
+          }
+        }
+      }
+    }
+
+    stage('Login to Docker Registry') {
+      steps {
+        container('dind') {
+          withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            sh '''
+              echo "Docker CLI version:"
+              docker --version || true
+              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin ${DOCKER_REGISTRY}
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Build - Tag - Push') {
+      steps {
+        container('dind') {
+          sh '''
+            echo "Tagging and pushing ${IMAGE_NAME}:${IMAGE_TAG}"
+            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:${IMAGE_TAG}
+            docker push ${IMAGE_NAME}:${IMAGE_TAG}
+          '''
+        }
+      }
+    }
+
+    stage('Deploy Application') {
+      steps {
+        container('kubectl') {
+          script {
+            dir("${DEPLOYMENT_DIR}") {
+              sh """
+                echo "Applying Kubernetes manifests..."
+                kubectl apply -f ${DEPLOYMENT_FILE} -n ${K8S_NAMESPACE} --record
+
+                echo "Updating image in deployment (if using imageUpdate)"
+                kubectl set image deployment/smartdine-deployment smartdine=${IMAGE_NAME}:${IMAGE_TAG} -n ${K8S_NAMESPACE} || true
+
+                echo "Waiting for rollout..."
+                kubectl rollout status deployment/smartdine-deployment -n ${K8S_NAMESPACE}
+              """
+            }
+          }
+        }
+      }
+    }
+  } // end stages
+
+  post {
+    always {
+      echo "Post: always - cleanup"
+      archiveArtifacts artifacts: 'target/*.jar', onlyIfSuccessful: false, allowEmptyArchive: true
+    }
+    success {
+      echo "Build ${env.BUILD_NUMBER} succeeded"
+    }
+    failure {
+      echo "Build ${env.BUILD_NUMBER} failed"
+    }
+  }
+}
