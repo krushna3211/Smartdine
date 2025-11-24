@@ -1,0 +1,46 @@
+pipeline {
+    agent any
+
+    environment {
+        // These allow Jenkins to safely inject your secrets
+        // You must create these IDs in Jenkins first (Step 5)
+        MONGO_URI = credentials('mongo-uri-secret') 
+        JWT_SECRET = credentials('jwt-secret')
+    }
+
+    stages {
+        stage('Install Dependencies') {
+            steps {
+                // Just to check everything is okay
+                sh 'npm install'
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                echo 'Building the Docker image...'
+                sh 'docker build -t smartdine-pos .'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo 'Deploying container...'
+                // 1. Stop any old version running (ignore error if none exists)
+                sh 'docker stop smartdine-container || true'
+                sh 'docker rm smartdine-container || true'
+                
+                // 2. Run the new version
+                // We pass your secrets securely into the container
+                sh '''
+                    docker run -d \
+                    -p 5000:5000 \
+                    --name smartdine-container \
+                    -e MONGO_URI=$MONGO_URI \
+                    -e JWT_SECRET=$JWT_SECRET \
+                    smartdine-pos
+                '''
+            }
+        }
+    }
+}
