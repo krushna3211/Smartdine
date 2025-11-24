@@ -69,19 +69,17 @@ spec:
     }
   }
 
-  // parameter to allow overriding the namespace per-build
   parameters {
     string(name: 'K8S_NAMESPACE', defaultValue: 'smartdine', description: 'Namespace to deploy into (will be sanitized)')
   }
 
   environment {
-    DOCKER_CREDENTIALS = 'nexus-docker-creds' // replace with your Jenkins credential ID for Nexus
+    DOCKER_CREDENTIALS = 'nexus-docker-creds'
     DOCKER_REGISTRY = 'nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085'
     NEXUS_REPO_PATH = 'krushna-project'
     IMAGE_NAME = "${DOCKER_REGISTRY}/${NEXUS_REPO_PATH}/smartdine-pos"
-    SONAR_CREDENTIALS = 'sonar-token' // Jenkins string credential ID containing sonar token
+    SONAR_CREDENTIALS = 'sonar-token'
     SONAR_HOST_URL = 'http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000'
-    // use the parameter (will be sanitized in the deploy stage)
     K8S_NAMESPACE = "${params.K8S_NAMESPACE}"
     DEPLOYMENT_DIR = 'k8s-deployment'
     DEPLOYMENT_FILE = 'smartdine-deployment.yaml'
@@ -90,24 +88,17 @@ spec:
   }
 
   options {
-    // timestamps() removed because some Jenkins installs don't support it.
     buildDiscarder(logRotator(numToKeepStr: '20'))
     timeout(time: 60, unit: 'MINUTES')
-    // skip default checkout in scripted parts? we keep default behavior
   }
 
   stages {
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
     stage('Build') {
-      steps {
-        // if you have a build step (mvn, npm build), adapt here. This pipeline uses Docker build directly.
-        echo "Building project artifacts (if any) - placeholder stage"
-      }
+      steps { echo "Build placeholder" }
     }
 
     stage('Build Docker Image') {
@@ -125,7 +116,6 @@ spec:
               echo "Docker daemon did not become ready"
               exit 1
             fi
-
             echo "Building image ${IMAGE_NAME}:${IMAGE_TAG}"
             docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
             docker image ls ${IMAGE_NAME} || true
@@ -139,7 +129,6 @@ spec:
         container('dind') {
           sh '''
             echo "Running tests inside image..."
-            # adapt test command as needed. This runs npm test inside the image.
             docker run --rm ${IMAGE_NAME}:${IMAGE_TAG} /bin/sh -c "npm ci && npm test"
           '''
         }
@@ -149,14 +138,25 @@ spec:
     stage('SonarQube Analysis') {
       steps {
         container('sonar-scanner') {
+          // withCredentials places SONAR_TOKEN into the shell environment of sh steps
           withCredentials([string(credentialsId: "${SONAR_CREDENTIALS}", variable: 'SONAR_TOKEN')]) {
-            // pass token via env var SONAR_TOKEN (sonar-scanner prefers sonar.token)
+            // NOTE: use double quotes for ${SONAR_HOST_URL} so the shell expands it,
+            // and use $SONAR_TOKEN (shell var) to avoid Groovy-string secret interpolation.
             sh '''
-              export SONAR_TOKEN="${SONAR_TOKEN}"
+              echo "Sonar host: ${SONAR_HOST_URL}"
+              # quick connectivity check: try the base /api/version endpoint for sanity (non-fatal)
+              if command -v curl >/dev/null 2>&1; then
+                echo "Checking connectivity to SonarQube..."
+                curl -fsS "${SONAR_HOST_URL}/api/server/version" || echo "Warning: could not curl SonarQube host"
+              else
+                echo "curl not available inside sonar-scanner image; skipping connectivity check."
+              fi
+
+              # Run sonar-scanner using shell-expanded variables
               sonar-scanner \
                 -Dsonar.projectKey=Krushna-project \
-                -Dsonar.host.url='${SONAR_HOST_URL}' \
-                -Dsonar.token="${SONAR_TOKEN}" \
+                -Dsonar.host.url="${SONAR_HOST_URL}" \
+                -Dsonar.token="$SONAR_TOKEN" \
                 -Dsonar.sources=. \
                 -Dsonar.exclusions=node_modules/**
             '''
@@ -196,31 +196,25 @@ spec:
         container('kubectl') {
           script {
             dir("${DEPLOYMENT_DIR}") {
-              // show contents for debugging
               sh 'echo "Repo k8s-deployment contents:"; ls -la || true'
 
-              // Sanitize namespace to RFC-1123: lowercase, replace invalid chars with '-', trim leading/trailing '-'
               sh '''
                 echo "Requested namespace (raw): ${K8S_NAMESPACE}"
                 ns=$(echo "${K8S_NAMESPACE}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/^-*//; s/-*$//')
                 if [ -z "$ns" ]; then
-                  echo "Sanitized namespace empty, falling back to 'smartdine'"
                   ns=smartdine
                 fi
                 echo "Sanitized namespace: $ns"
                 export SANITIZED_NAMESPACE="$ns"
               '''
 
-              // If a namespace manifest is present, attempt to apply it (safe, idempotent)
               sh '''
                 if [ -f "${NAMESPACE_FILE}" ]; then
                   echo "Applying ${NAMESPACE_FILE} (if present)..."
-                  # apply namespace manifest (it may set metadata.name); ignore errors
                   kubectl apply -f ${NAMESPACE_FILE} || true
                 fi
               '''
 
-              // Create namespace if missing (using sanitized value)
               sh '''
                 echo "Ensure namespace exists: $SANITIZED_NAMESPACE"
                 if ! kubectl get namespace "$SANITIZED_NAMESPACE" >/dev/null 2>&1; then
@@ -231,7 +225,6 @@ spec:
                 fi
               '''
 
-              // Apply deployment/service manifest and set image
               sh '''
                 echo "Applying manifest ${DEPLOYMENT_FILE} to namespace $SANITIZED_NAMESPACE"
                 kubectl apply -f ${DEPLOYMENT_FILE} -n "$SANITIZED_NAMESPACE"
@@ -243,7 +236,6 @@ spec:
                 kubectl rollout status deployment/smartdine-deployment -n "$SANITIZED_NAMESPACE" --timeout=120s || true
               '''
 
-              // If rollout not available -> show pods/events and fail
               sh '''
                 if ! kubectl get deploy smartdine-deployment -n "$SANITIZED_NAMESPACE" -o jsonpath="{.status.conditions[?(@.type=='Available')].status}" | grep True; then
                   echo "Rollout not available — dumping debugging info:"
@@ -253,23 +245,19 @@ spec:
                   exit 1
                 fi
               '''
-            } // dir
-          } // script
-        } // container
-      } // steps
-    } // stage Deploy
-  } // stages
+            }
+          }
+        }
+      }
+    }
+  }
 
   post {
     always {
       echo "Post: always - archive artifacts if any"
       archiveArtifacts artifacts: 'target/*.jar', onlyIfSuccessful: false, allowEmptyArchive: true
     }
-    success {
-      echo "Build ${env.BUILD_NUMBER} succeeded"
-    }
-    failure {
-      echo "Build ${env.BUILD_NUMBER} failed"
-    }
+    success { echo "Build ${env.BUILD_NUMBER} succeeded" }
+    failure { echo "Build ${env.BUILD_NUMBER} failed" }
   }
 }
