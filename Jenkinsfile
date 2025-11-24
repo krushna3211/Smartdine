@@ -50,30 +50,27 @@ spec:
   }
 
   environment {
-    // Replace these with the real Jenkins credential IDs and registry
-    DOCKER_CREDENTIALS = 'nexus-docker-creds'            // username/password credential ID for Nexus
+    DOCKER_CREDENTIALS = 'nexus-docker-creds'
     DOCKER_REGISTRY = 'nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085'
-    NEXUS_REPO_PATH = 'krushna-project'                 // your repo path in Nexus
+    NEXUS_REPO_PATH = 'krushna-project'
     IMAGE_NAME = "${DOCKER_REGISTRY}/${NEXUS_REPO_PATH}/smartdine-pos"
-    SONAR_CREDENTIALS = 'sonar-token'                   // Jenkins string credential containing Sonar token
+    SONAR_CREDENTIALS = 'sonar-token'
     SONAR_HOST_URL = 'http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000'
-    K8S_NAMESPACE = 'YOUR_NAMESPACE'                    // replace with your k8s namespace
-    DEPLOYMENT_DIR = 'k8s-deployment'                   // folder containing your k8s yaml
-    DEPLOYMENT_FILE = 'smartdine-deployment.yaml'       // filename to apply
+    K8S_NAMESPACE = 'YOUR_NAMESPACE'
+    DEPLOYMENT_DIR = 'k8s-deployment'
+    DEPLOYMENT_FILE = 'smartdine-deployment.yaml'
     IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"
   }
 
   options {
-    timestamps()
+    // timestamps() removed because it's not available in your Jenkins
     buildDiscarder(logRotator(numToKeepStr: '20'))
     timeout(time: 60, unit: 'MINUTES')
   }
 
   stages {
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
     stage('Build Docker Image') {
@@ -103,10 +100,7 @@ spec:
     stage('Run Tests in Docker') {
       steps {
         container('dind') {
-          sh '''
-            echo "Running tests inside image..."
-            docker run --rm ${IMAGE_NAME}:${IMAGE_TAG} /bin/sh -c "npm ci && npm test"
-          '''
+          sh 'docker run --rm ${IMAGE_NAME}:${IMAGE_TAG} /bin/sh -c "npm ci && npm test"'
         }
       }
     }
@@ -146,7 +140,6 @@ spec:
       steps {
         container('dind') {
           sh '''
-            echo "Tagging and pushing ${IMAGE_NAME}:${IMAGE_TAG}"
             docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:${IMAGE_TAG}
             docker push ${IMAGE_NAME}:${IMAGE_TAG}
           '''
@@ -160,13 +153,8 @@ spec:
           script {
             dir("${DEPLOYMENT_DIR}") {
               sh """
-                echo "Applying Kubernetes manifests..."
                 kubectl apply -f ${DEPLOYMENT_FILE} -n ${K8S_NAMESPACE} --record
-
-                echo "Updating image in deployment (if using imageUpdate)"
                 kubectl set image deployment/smartdine-deployment smartdine=${IMAGE_NAME}:${IMAGE_TAG} -n ${K8S_NAMESPACE} || true
-
-                echo "Waiting for rollout..."
                 kubectl rollout status deployment/smartdine-deployment -n ${K8S_NAMESPACE}
               """
             }
@@ -178,14 +166,9 @@ spec:
 
   post {
     always {
-      echo "Post: always - cleanup"
       archiveArtifacts artifacts: 'target/*.jar', onlyIfSuccessful: false, allowEmptyArchive: true
     }
-    success {
-      echo "Build ${env.BUILD_NUMBER} succeeded"
-    }
-    failure {
-      echo "Build ${env.BUILD_NUMBER} failed"
-    }
+    success { echo "Build ${env.BUILD_NUMBER} succeeded" }
+    failure { echo "Build ${env.BUILD_NUMBER} failed" }
   }
 }
