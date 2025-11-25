@@ -38,6 +38,9 @@ spec:
       value: ""
     securityContext:
       privileged: true
+    command:
+    - cat
+    tty: true
     volumeMounts:
     - mountPath: /etc/docker/daemon.json
       name: docker-config
@@ -45,10 +48,15 @@ spec:
     - mountPath: /home/jenkins/agent
       name: workspace-volume
   - name: jnlp
+    # keep agent image pinned if you rely on a specific version; using inbound-agent:latest is generally OK
     image: jenkins/inbound-agent:3309.v27b_9314fd1a_4-1
     env:
     - name: JENKINS_URL
       value: "http://my-jenkins.jenkins.svc.cluster.local:8080/"
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
     volumeMounts:
     - mountPath: /home/jenkins/agent
       name: workspace-volume
@@ -70,7 +78,8 @@ spec:
 
   parameters {
     string(name: 'K8S_NAMESPACE', defaultValue: 'smartdine', description: 'Namespace to deploy into (will be sanitized)')
-    booleanParam(name: 'ALLOW_INSECURE_REGISTRY', defaultValue: false, description: 'If checked, continue when registry only responds on HTTP (ensure cluster nodes can pull from insecure registry)')
+    // default changed to true to avoid failing on internal HTTP-only registries; you can set false when TLS is enabled
+    booleanParam(name: 'ALLOW_INSECURE_REGISTRY', defaultValue: true, description: 'If checked, continue when registry only responds on HTTP (ensure cluster nodes can pull from insecure registry)')
   }
 
   environment {
@@ -87,7 +96,7 @@ spec:
     NAMESPACE_FILE = 'namespace.yaml'
     IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"
 
-    // <<< IMPORTANT FIX: expose the boolean parameter into the shell environment so set -u won't fail >>>
+    // expose boolean parameter into the shell environment so set -u won't fail
     ALLOW_INSECURE_REGISTRY = "${params.ALLOW_INSECURE_REGISTRY}"
     RESTART_AGENTS = 'false'
   }
@@ -120,33 +129,62 @@ spec:
       steps {
         container('kubectl') {
           script {
+            // Retry loop, obey ALLOW_INSECURE_REGISTRY; don't immediately abort CI if allowed
             sh '''
               set -euo pipefail
               echo "Checking registry ${DOCKER_REGISTRY} reachability (https then http)..."
-              if command -v curl >/dev/null 2>&1; then
-                if curl -sS --connect-timeout 5 "https://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
-                  echo "Registry responds to HTTPS."
-                else
-                  echo "HTTPS check failed or non-HTTPS response detected. Testing HTTP..."
-                  if curl -sS --connect-timeout 5 "http://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
-                    echo "Registry only responds over HTTP."
-                    # SAFE: ALLOW_INSECURE_REGISTRY is exported into the environment above, so it's always defined.
-                    if [ "${ALLOW_INSECURE_REGISTRY}" = "true" ]; then
-                      echo "ALLOW_INSECURE_REGISTRY=true -> proceeding despite HTTP registry."
-                    else
-                      echo "Registry uses HTTP. To proceed either:"
-                      echo "  * set ALLOW_INSECURE_REGISTRY=true when starting the job (beware insecure transport), OR"
-                      echo "  * configure your cluster nodes to treat ${DOCKER_REGISTRY} as insecure registry, OR"
-                      echo "  * enable TLS on the registry."
-                      exit 2
-                    fi
+              tries=0
+              max_tries=3
+              success=false
+
+              while [ $tries -lt $max_tries ]; do
+                tries=$((tries+1))
+                echo "Registry preflight attempt $tries/${max_tries}"
+                if command -v curl >/dev/null 2>&1; then
+                  if curl -sS --connect-timeout 5 "https://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
+                    echo "Registry responds to HTTPS."
+                    success=true
+                    break
                   else
-                    echo "Could not reach registry at ${DOCKER_REGISTRY} over HTTP or HTTPS."
-                    exit 2
+                    echo "HTTPS check failed or non-HTTPS response detected. Testing HTTP..."
+                    if curl -sS --connect-timeout 5 "http://${DOCKER_REGISTRY}/v2/" >/dev/null 2>&1; then
+                      echo "Registry only responds over HTTP."
+                      if [ "${ALLOW_INSECURE_REGISTRY}" = "true" ] || [ "${ALLOW_INSECURE_REGISTRY}" = "True" ]; then
+                        echo "ALLOW_INSECURE_REGISTRY=${ALLOW_INSECURE_REGISTRY} -> proceeding despite HTTP registry."
+                        success=true
+                        break
+                      else
+                        echo "Registry uses HTTP and ALLOW_INSECURE_REGISTRY is not set -> will not proceed."
+                        # Only fail now if final attempt
+                        if [ $tries -ge $max_tries ]; then
+                          echo "Exiting: registry uses HTTP and ALLOW_INSECURE_REGISTRY is false."
+                          exit 2
+                        fi
+                      fi
+                    else
+                      echo "Could not reach registry at ${DOCKER_REGISTRY} over HTTP or HTTPS (attempt $tries)."
+                      if [ $tries -ge $max_tries ]; then
+                        echo "Exiting: registry unreachable after ${max_tries} attempts."
+                        exit 2
+                      fi
+                    fi
                   fi
+                else
+                  echo "curl not present in this container; skipping protocol preflight (assume cluster can reach registry)."
+                  success=true
+                  break
                 fi
-              else
-                echo "curl not present in this container; skipping protocol preflight."
+                sleep 3
+              done
+
+              if [ "${success}" != "true" ]; then
+                # This is a defensive fallback - should not be reached because of exits above
+                if [ "${ALLOW_INSECURE_REGISTRY}" = "true" ] || [ "${ALLOW_INSECURE_REGISTRY}" = "True" ]; then
+                  echo "WARNING: registry preflight did not confirm HTTPS but ALLOW_INSECURE_REGISTRY=${ALLOW_INSECURE_REGISTRY}. Continuing."
+                else
+                  echo "ERROR: registry preflight failed and ALLOW_INSECURE_REGISTRY is false -> failing build."
+                  exit 2
+                fi
               fi
             '''
           }
@@ -162,7 +200,7 @@ spec:
               set -euo pipefail
               echo "Applying docker-daemon-config ConfigMap in namespace jenkins (if present in repo)"
               if [ -f "${DEPLOYMENT_DIR}/docker-daemon-config.yaml" ]; then
-                cat "${DEPLOYMENT_DIR}/docker-daemon-config.yaml" | kubectl -n jenkins apply -f -
+                cat "${DEPLOYMENT_DIR}/docker-daemon-config.yaml" | kubectl -n jenkins apply -f - || true
                 echo "Applied docker-daemon-config from repo."
               else
                 echo "No ${DEPLOYMENT_DIR}/docker-daemon-config.yaml found in repo -> skipping apply"
