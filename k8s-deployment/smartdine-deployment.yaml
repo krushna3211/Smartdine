@@ -15,11 +15,14 @@ spec:
       labels:
         app: smartdine
     spec:
+      # <-- add imagePullSecrets here so pods explicitly use the registry secret
+      imagePullSecrets:
+      - name: nexus-pull-secret
+
       containers:
       - name: smartdine
-        # This image string matches the repository you push to in Jenkins.
-        # Jenkins will run: kubectl set image deployment/smartdine-deployment smartdine=<IMAGE>:<TAG>
-        image: nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/krushna-project/smartdine-pos:latest
+        # Jenkins replaces :latest with build tag (sed in pipeline)
+        image: 10.43.21.172:8085/krushna-project/smartdine-pos:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
