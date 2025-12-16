@@ -180,7 +180,7 @@ spec:
             steps {
                 container('kubectl') {
                     sh '''
-                        kubectl rollout status deployment/smartdine-deployment -n ${NAMESPACE} --timeout=60s
+                        kubectl rollout status deployment/smartdine-deployment -n ${NAMESPACE} --timeout=300s
                         kubectl get pods -n ${NAMESPACE} -o wide
                     '''
                 }
