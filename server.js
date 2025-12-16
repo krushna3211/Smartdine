@@ -16,35 +16,37 @@ import billRoutes from './routes/billRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 
 dotenv.config();
-connectDB();
-
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// --- 1. Setup Static Files (Fix applied here) ---
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Connect to Database first
+connectDB().then(() => {
+  // --- 1. Setup Static Files (Fix applied here) ---
+  const __filename = fileURLToPath(import.meta.url);
 
-// Pointing to 'public' folder. Ensure this folder exists in your backend root.
-app.use(express.static(path.join(__dirname, 'public')));
+  const __dirname = path.dirname(__filename);
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/staff', staffRoutes);
-app.use('/api/menu', menuRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/tables', tableRoutes);
-app.use('/api/inventory', inventoryRoutes);
-app.use('/api/bills', billRoutes);
-app.use('/api/reports', reportRoutes);
+  // Pointing to 'public' folder. Ensure this folder exists in your backend root.
+  app.use(express.static(path.join(__dirname, 'public')));
 
-// --- 3. Catch-All Route ---
-// This serves the frontend index.html if no API route is hit
-// NEW (Correct)
-app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  // Routes
+  app.use('/api/auth', authRoutes);
+  app.use('/api/staff', staffRoutes);
+  app.use('/api/menu', menuRoutes);
+  app.use('/api/orders', orderRoutes);
+  app.use('/api/tables', tableRoutes);
+  app.use('/api/inventory', inventoryRoutes);
+  app.use('/api/bills', billRoutes);
+  app.use('/api/reports', reportRoutes);
+
+  // --- 3. Catch-All Route ---
+  // This serves the frontend index.html if no API route is hit
+  // NEW (Correct)
+  app.get(/.*/, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  });
+
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 });
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
