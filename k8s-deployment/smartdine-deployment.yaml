@@ -20,28 +20,40 @@ spec:
       labels:
         app: smartdine
     spec:
-      # Use the secret created by your Jenkinsfile (same mechanism as your friend)
+      # 1. Authentication for Registry
       imagePullSecrets:
       - name: nexus-pull-secret
 
       containers:
       - name: smartdine
-        # Matches your Jenkinsfile DNS name
+        # 2. Image Location
         image: nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/krushna-project/smartdine-pos:latest
         imagePullPolicy: Always
+        
         ports:
         - containerPort: 3000
           name: http
         
+        # 3. Environment Variables (The Fix)
         env:
         - name: NODE_ENV
           value: "production"
-        # --- CRITICAL FIX START ---
-        # This forces your app to listen on port 3000, matching the containerPort above.
         - name: PORT
           value: "3000"
-        # --- CRITICAL FIX END ---
+        
+        # Database Connections (Matches your friend's setup)
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: smartdine-secrets
+              key: MONGO_URI
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: smartdine-secrets
+              key: JWT_SECRET
 
+        # 4. Health Checks
         readinessProbe:
           httpGet:
             path: /
