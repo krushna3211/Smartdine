@@ -33,8 +33,8 @@ spec:
       - dockerd
     args:
       - "--host=unix:///var/run/docker.sock"
-      # This flag fixes the HTTP/HTTPS error
-      - "--insecure-registry=10.43.21.172:8085"
+      # FIX: We now trust the DNS Name, not the IP
+      - "--insecure-registry=nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
       - "--storage-driver=overlay2"
     env:
     - name: DOCKER_TLS_CERTDIR
@@ -58,18 +58,16 @@ spec:
     }
 
     environment {
-        // --- YOUR CONFIGURATION ---
-        REGISTRY_IP = "10.43.21.172:8085"
+        // FIX: Switched to Internal DNS Name
+        REGISTRY_URL = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
         PROJECT_NAME = "krushna-project" 
         APP_NAME = "smartdine-pos"
         
-        // Full image URL
-        FULL_IMAGE = "${REGISTRY_IP}/${PROJECT_NAME}/${APP_NAME}"
+        FULL_IMAGE = "${REGISTRY_URL}/${PROJECT_NAME}/${APP_NAME}"
         
         TAG = "${env.BUILD_NUMBER}"
         NAMESPACE = "smartdine"
         
-        // Sonar Settings
         SONAR_PROJECT_KEY = "2401126-Smartdine"
         SONAR_URL = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
     }
@@ -85,10 +83,7 @@ spec:
                         
                         echo "Building ${FULL_IMAGE}:${TAG}..."
                         docker build -t ${FULL_IMAGE}:${TAG} .
-                        
-                        # Tag latest as well
                         docker tag ${FULL_IMAGE}:${TAG} ${FULL_IMAGE}:latest
-                        
                         docker images
                     '''
                 }
@@ -98,8 +93,7 @@ spec:
         stage('SonarQube Analysis') {
             steps {
                 container('sonar-scanner') {
-                    // We still use the sonar-auth-new credential we created earlier
-                    withCredentials([string(credentialsId: 'sonar_token_2401126', variable: 'SONAR_TOKEN')]) {
+                    withCredentials([string(credentialsId: 'sonar-auth-new', variable: 'SONAR_TOKEN')]) {
                         sh '''
                             sonar-scanner \
                               -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
@@ -115,9 +109,9 @@ spec:
         stage('Login to Nexus Registry') {
             steps {
                 container('dind') {
-                    // HARDCODED CREDENTIALS (Like your friend's file)
                     sh '''
-                        echo "Changeme@2025" | docker login ${REGISTRY_IP} -u admin --password-stdin
+                        # Hardcoded credentials as requested
+                        echo "Changeme@2025" | docker login ${REGISTRY_URL} -u admin --password-stdin
                     '''
                 }
             }
@@ -147,18 +141,15 @@ spec:
         stage('Create Registry Secret') {
             steps {
                 container('kubectl') {
-                    // HARDCODED CREDENTIALS for the Kubernetes Secret
                     sh '''
-                        # Only create secret if it doesn't exist
                         if ! kubectl get secret nexus-pull-secret -n ${NAMESPACE}; then
                             kubectl create secret docker-registry nexus-pull-secret \
-                              --docker-server=${REGISTRY_IP} \
+                              --docker-server=${REGISTRY_URL} \
                               --docker-username="admin" \
                               --docker-password="Changeme@2025" \
                               -n ${NAMESPACE}
                         fi
                         
-                        # Patch default account to use it
                         kubectl patch serviceaccount default -n ${NAMESPACE} -p '{"imagePullSecrets":[{"name":"nexus-pull-secret"}]}' || true
                     '''
                 }
@@ -170,10 +161,10 @@ spec:
                 container('kubectl') {
                     dir('k8s-deployment') {
                         sh '''
-                            # Apply your deployment file
+                            # Apply Deployment
                             kubectl apply -f smartdine-deployment.yaml -n ${NAMESPACE}
                             
-                            # Force update the image to the specific build tag we just pushed
+                            # Force update image to new tag
                             kubectl set image deployment/smartdine-deployment smartdine=${FULL_IMAGE}:${TAG} -n ${NAMESPACE}
                             
                             if [ -f namespace.yaml ]; then
