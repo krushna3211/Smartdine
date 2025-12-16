@@ -50,17 +50,16 @@ spec:
     }
 
     environment {
-        REGISTRY_URL      = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
-        PROJECT_NAME      = "krushna-project"
-        APP_NAME          = "smartdine-pos"
+        APP_NAME        = "smartdine-pos"
+        IMAGE_TAG       = "${BUILD_NUMBER}"
 
-        IMAGE_TAG         = "${BUILD_NUMBER}"
-        FULL_IMAGE        = "${REGISTRY_URL}/${PROJECT_NAME}/${APP_NAME}"
+        REGISTRY_URL    = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
+        REGISTRY_REPO   = "krushna-project"
 
-        NAMESPACE         = "smartdine"
+        SONAR_PROJECT   = "2401126-Smartdine"
+        SONAR_HOST_URL  = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
 
-        SONAR_PROJECT_KEY = "2401126-Smartdine"
-        SONAR_HOST_URL    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
+        NAMESPACE       = "smartdine"
     }
 
     stages {
@@ -70,9 +69,19 @@ spec:
                 container('dind') {
                     sh '''
                         sleep 15
-                        docker build -t ${FULL_IMAGE}:${IMAGE_TAG} .
-                        docker tag ${FULL_IMAGE}:${IMAGE_TAG} ${FULL_IMAGE}:latest
+                        docker build -t $APP_NAME:$IMAGE_TAG .
                         docker images
+                    '''
+                }
+            }
+        }
+
+        stage('Run Tests in Docker') {
+            steps {
+                container('dind') {
+                    sh '''
+                        echo "Running tests..."
+                        # docker run --rm $APP_NAME:$IMAGE_TAG npm test
                     '''
                 }
             }
@@ -86,9 +95,9 @@ spec:
                     ]) {
                         sh '''
                             sonar-scanner \
-                              -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                              -Dsonar.host.url=${SONAR_HOST_URL} \
-                              -Dsonar.login=${SONAR_TOKEN} \
+                              -Dsonar.projectKey=$SONAR_PROJECT \
+                              -Dsonar.host.url=$SONAR_HOST_URL \
+                              -Dsonar.login=$SONAR_TOKEN \
                               -Dsonar.sources=. \
                               -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**
                         '''
@@ -97,44 +106,45 @@ spec:
             }
         }
 
-        stage('Login to Nexus Registry') {
+        stage('Login to Docker Registry') {
             steps {
                 container('dind') {
                     sh '''
-                        docker login ${REGISTRY_URL} -u admin -p Changeme@2025
+                        docker login $REGISTRY_URL -u admin -p Changeme@2025
                     '''
                 }
             }
         }
 
-        stage('Push Docker Images') {
+        stage('Build - Tag - Push Image') {
             steps {
                 container('dind') {
                     sh '''
-                        docker push ${FULL_IMAGE}:${IMAGE_TAG}
-                        docker push ${FULL_IMAGE}:latest
+                        docker tag $APP_NAME:$IMAGE_TAG \
+                          $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:$IMAGE_TAG
+
+                        docker tag $APP_NAME:$IMAGE_TAG \
+                          $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:latest
+
+                        docker push $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:$IMAGE_TAG
+                        docker push $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:latest
+
                         docker images
                     '''
                 }
             }
         }
 
-        stage('Prepare Kubernetes Namespace') {
+        stage('Deploy Application') {
             steps {
                 container('kubectl') {
-                    sh '''
-                        kubectl get ns ${NAMESPACE} || kubectl create namespace ${NAMESPACE}
-                    '''
+                    dir('k8s-deployment') {
+                        sh '''
+                            kubectl apply -f .
+                        '''
+                    }
                 }
             }
         }
-
-        stage('Create Registry Secret') {
-            steps {
-                container('kubectl') {
-                    sh '''
-                        if ! kubectl get secret nexus-pull-secret -n ${NAMESPACE}; then
-                            kubectl create secret docker-registry nexus-pull-secret \
-                              --docker-server=${REGISTRY_URL} \
-                              --docker-username=admin \
-                              --docker-password=Changeme@2025 \
+    }
+}
