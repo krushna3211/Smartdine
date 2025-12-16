@@ -32,7 +32,6 @@ spec:
       value: ""
     args:
     - "--storage-driver=overlay2"
-    - "--insecure-registry=10.43.21.172:8085"
     volumeMounts:
     - name: docker-config
       mountPath: /etc/docker/daemon.json
