@@ -95,13 +95,14 @@ spec:
         stage('SonarQube Scan') {
             steps {
                 container('sonar-scanner') {
+                    // Make sure the ID 'sonar_token_2401126' matches exactly what is in Jenkins Credentials!
                     withCredentials([string(credentialsId: 'sonar_token_2401126', variable: 'SONAR_TOKEN')]) {
                         sh '''
                             sonar-scanner \
                                 -Dsonar.projectKey=2401126-Smartdine \
                                 -Dsonar.sources=. \
                                 -Dsonar.host.url=http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000 \
-                                -Dsonar.token=squ_82487ffedd6bf967f6254fccccb56f3973eb2eee
+                                -Dsonar.token=$SONAR_TOKEN
                         '''
                     }
                 }
