@@ -1,8 +1,8 @@
-# k8s-deployment/smartdine-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: smartdine-deployment
+  namespace: smartdine
   labels:
     app: smartdine
 spec:
@@ -15,45 +15,45 @@ spec:
       labels:
         app: smartdine
     spec:
+      imagePullSecrets:
+      - name: nexus-pull-secret
       containers:
-        - name: smartdine
-          # This image string matches the repository you push to in Jenkins.
-          # Jenkins will run: kubectl set image deployment/smartdine-deployment smartdine=<IMAGE>:<TAG>
-          image: 127.0.0.1:30085/krushna-project/smartdine-pos:latest
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 3000
-              name: http
-          env:
-            - name: NODE_ENV
-              value: "production"
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            failureThreshold: 3
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-            initialDelaySeconds: 30
-            periodSeconds: 20
-            failureThreshold: 3
-          resources:
-            requests:
-              memory: "128Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "500m"
-
+      - name: smartdine
+        image: nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/krushna-project/smartdine-pos:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: NODE_ENV
+          value: "production"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: smartdine-service
+  namespace: smartdine
   labels:
     app: smartdine
 spec:
