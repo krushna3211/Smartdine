@@ -95,7 +95,7 @@ spec:
         stage('SonarQube Scan') {
             steps {
                 container('sonar-scanner') {
-                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                    withCredentials([string(credentialsId: 'sonar_token_2401126', variable: 'SONAR_TOKEN')]) {
                         sh '''
                             sonar-scanner \
                               -Dsonar.projectKey=Krushna-project \
