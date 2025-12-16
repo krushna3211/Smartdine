@@ -102,7 +102,7 @@ spec:
                                 -Dsonar.projectKey=2401126-Smartdine \
                                 -Dsonar.sources=. \
                                 -Dsonar.host.url=http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000 \
-                                -Dsonar.token=$SONAR_TOKEN
+                                -Dsonar.login=$SONAR_TOKEN
                         '''
                     }
                 }
