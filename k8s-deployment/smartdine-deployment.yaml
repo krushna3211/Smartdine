@@ -1,8 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "smartdine"
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: smartdine-deployment
-  namespace: smartdine
+  namespace: "smartdine"
   labels:
     app: smartdine
 spec:
@@ -15,32 +20,44 @@ spec:
       labels:
         app: smartdine
     spec:
+      # Use the secret created by your Jenkinsfile (same mechanism as your friend)
       imagePullSecrets:
       - name: nexus-pull-secret
+
       containers:
       - name: smartdine
+        # Matches your Jenkinsfile DNS name
         image: nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/krushna-project/smartdine-pos:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
           name: http
+        
         env:
         - name: NODE_ENV
           value: "production"
+        # --- CRITICAL FIX START ---
+        # This forces your app to listen on port 3000, matching the containerPort above.
+        - name: PORT
+          value: "3000"
+        # --- CRITICAL FIX END ---
+
         readinessProbe:
           httpGet:
             path: /
-            port: http
+            port: 3000
           initialDelaySeconds: 10
           periodSeconds: 10
           failureThreshold: 3
+        
         livenessProbe:
           httpGet:
             path: /
-            port: http
+            port: 3000
           initialDelaySeconds: 30
           periodSeconds: 20
           failureThreshold: 3
+        
         resources:
           requests:
             memory: "128Mi"
@@ -53,14 +70,14 @@ apiVersion: v1
 kind: Service
 metadata:
   name: smartdine-service
-  namespace: smartdine
+  namespace: "smartdine"
   labels:
     app: smartdine
 spec:
   selector:
     app: smartdine
   ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 3000
+  - protocol: TCP
+    port: 80
+    targetPort: 3000
   type: ClusterIP
