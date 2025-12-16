@@ -100,7 +100,7 @@ spec:
                             sonar-scanner \
                                 -Dsonar.projectKey=2401126-Smartdine \
                                 -Dsonar.sources=. \
-                                -Dsonar.host.url=http://sonarqube.imcc.com \
+                                -Dsonar.host.url=http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000 \
                                 -Dsonar.token=sqp_c8db51bb4d03e9139acd896e98462b5c6a4182d9
                         '''
                     }
