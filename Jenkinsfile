@@ -129,9 +129,9 @@ spec:
                 container('kubectl') {
                     dir('k8s-deployment') {
                         sh '''
-                            # Create secret for registry (using IP)
+                            # Create secret for registry (using Localhost Port to match Deployment)
                             kubectl create secret docker-registry nexus-pull-secret \
-                                --docker-server=$REGISTRY_URL \
+                                --docker-server=127.0.0.1:30085 \
                                 --docker-username=admin \
                                 --docker-password=Changeme@2025 \
                                 --namespace=$NAMESPACE \

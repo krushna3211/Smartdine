@@ -18,8 +18,8 @@ spec:
 
       containers:
         - name: smartdine
-          # Using IP address for Registry to bypass DNS/Certificate issues
-          image: 10.43.210.159:8085/krushna-project/smartdine-pos:latest
+          # Using Localhost Port 30085 (Friend's pattern) to bypass HTTPS requirement on Node
+          image: 127.0.0.1:30085/krushna-project/smartdine-pos:latest
           
           imagePullPolicy: Always
 
