@@ -143,6 +143,12 @@ spec:
                             # Restart deployment to pick up changes
                             kubectl rollout restart deployment/smartdine-deployment -n $NAMESPACE
                             
+                            # DEBUG: Check status immediately before waiting
+                            echo "--- DEBUG POD STATUS ---"
+                            sleep 5
+                            kubectl get pods -n $NAMESPACE
+                            kubectl describe pods -l app=smartdine -n $NAMESPACE
+                            
                             # Verify
                             echo "Waiting for rollout..."
                             kubectl rollout status deployment/smartdine-deployment -n $NAMESPACE
