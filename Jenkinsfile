@@ -140,14 +140,22 @@ spec:
                 container('kubectl') {
                     dir('k8s-deployment') {
                         sh '''
-                            # Create secret for registry
+                            # 1. Resolve the Service ClusterIP
+                            REGISTRY_IP=$(kubectl get svc nexus-service-for-docker-hosted-registry -n nexus -o jsonpath='{.spec.clusterIP}')
+                            echo "Resolved Registry IP: $REGISTRY_IP"
+
+                            # 2. Create secret using the IP address (Bypass DNS)
                             kubectl create secret docker-registry nexus-pull-secret \
-                                --docker-server=$REGISTRY_URL \
+                                --docker-server=${REGISTRY_IP}:8085 \
                                 --docker-username=admin \
                                 --docker-password=Changeme@2025 \
                                 --namespace=smartdine \
                                 --dry-run=client -o yaml | kubectl apply -f -
 
+                            # 3. Replace Hostname with IP in Deployment YAML
+                            sed -i "s/nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local/$REGISTRY_IP/g" smartdine-deployment.yaml
+
+                            # 4. Apply
                             kubectl apply -f .
                             kubectl rollout restart deployment/smartdine-deployment -n smartdine
                         '''
