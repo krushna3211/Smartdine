@@ -141,6 +141,7 @@ spec:
                     dir('k8s-deployment') {
                         sh '''
                             kubectl apply -f .
+                            kubectl rollout restart deployment/smartdine-deployment -n smartdine
                         '''
                     }
                 }
