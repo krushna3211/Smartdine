@@ -1,15 +1,8 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: "smartdine"
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: smartdine-deployment
   namespace: "smartdine"
-  labels:
-    app: smartdine
 spec:
   replicas: 1
   selector:
@@ -20,76 +13,48 @@ spec:
       labels:
         app: smartdine
     spec:
-      # 1. Authentication for Registry
       imagePullSecrets:
-      - name: nexus-pull-secret
+        - name: nexus-pull-secret
 
       containers:
-      - name: smartdine
-        # 2. Image Location
-        image: nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/krushna-project/smartdine-pos:latest
-        imagePullPolicy: Always
-        
-        ports:
-        - containerPort: 3000
-          name: http
-        
-        # 3. Environment Variables (The Fix)
-        env:
-        - name: NODE_ENV
-          value: "production"
-        - name: PORT
-          value: "3000"
-        
-        # Database Connections (Matches your friend's setup)
-        - name: MONGO_URI
-          valueFrom:
-            secretKeyRef:
-              name: smartdine-secrets
-              key: MONGO_URI
-        - name: JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: smartdine-secrets
-              key: JWT_SECRET
+        - name: smartdine
+          # Using IP address for Registry to bypass DNS/Certificate issues
+          image: 10.43.210.159:8085/krushna-project/smartdine-pos:latest
+          
+          imagePullPolicy: Always
 
-        # 4. Health Checks
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 3000
-          initialDelaySeconds: 20
-          periodSeconds: 10
-          failureThreshold: 3
-        
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 3000
-          initialDelaySeconds: 60
-          periodSeconds: 20
-          failureThreshold: 3
-        
-        resources:
-          requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: smartdine-service
-  namespace: "smartdine"
-  labels:
-    app: smartdine
-spec:
-  selector:
-    app: smartdine
-  ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 3000
-  type: ClusterIP
+          ports:
+            - containerPort: 3000
+
+          env:
+            - name: NODE_ENV
+              value: "production"
+            
+            - name: PORT
+              value: "3000"
+
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: smartdine-secrets
+                  key: MONGO_URI
+
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: smartdine-secrets
+                  key: JWT_SECRET
+          
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 10
