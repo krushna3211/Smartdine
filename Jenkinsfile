@@ -166,6 +166,9 @@ spec:
                         
                         echo "Checking Deployment Status:"
                         kubectl describe deployment smartdine-deployment -n smartdine || true
+
+                        echo "Checking Pods Details (Events):"
+                        kubectl describe pods -l app=smartdine -n smartdine
                         
                         echo "Fetching Pod Logs:"
                         kubectl logs -l app=smartdine -n smartdine --tail=50 || echo "No logs found"
